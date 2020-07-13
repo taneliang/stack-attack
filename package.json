@@ -20,6 +20,7 @@
   "dependencies": {
     "ink": "^2.7.1",
     "meow": "^7.0.1",
+    "nodegit": "^0.26.5",
     "prop-types": "^15.7.2",
     "react": "^16.13.1"
   },
