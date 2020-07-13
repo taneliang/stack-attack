@@ -69,6 +69,13 @@ export type NavigatorBackend = {
     targetCommit: Commit,
   ): Promise<Commit>;
 
+  /**
+   * Amend the checked-out commit with the staged changes, then rebase this
+   * commit's dependents onto the ammended commit.
+   * @param repoPath Path to repository root.
+   */
+  amendAndRebaseDependentTree(repoPath: string): Promise<Commit>;
+
   createOrUpdatePRsForCommits(
     repoPath: string,
     commitStack: Commit[],
