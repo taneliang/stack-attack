@@ -1,0 +1,62 @@
+{
+  "name": "sttack",
+  "version": "0.0.0",
+  "license": "MIT",
+  "bin": "cli.js",
+  "engines": {
+    "node": ">=8"
+  },
+  "scripts": {
+    "cli": "ts-node ./src/cli/index.ts",
+    "cli:watch": "nodemon -x ts-node -e ts,tsx ./src/cli/index.ts",
+    "build": "tsc",
+    "typecheck": "tsc --noEmit",
+    "test": "xo && jest"
+  },
+  "files": [
+    "dist/cli.js",
+    "dist/ui.js"
+  ],
+  "dependencies": {
+    "ink": "^2.7.1",
+    "meow": "^7.0.1",
+    "prop-types": "^15.7.2",
+    "react": "^16.13.1"
+  },
+  "devDependencies": {
+    "@babel/preset-react": "^7.10.4",
+    "@babel/register": "^7.10.4",
+    "@types/jest": "^26.0.4",
+    "chalk": "^4.1.0",
+    "eslint-config-xo-react": "^0.23.0",
+    "eslint-plugin-jest": "^23.18.0",
+    "eslint-plugin-react": "^7.20.3",
+    "eslint-plugin-react-hooks": "^4.0.7",
+    "ink-testing-library": "^2.0.0",
+    "jest": "^26.1.0",
+    "jest-junit": "^11.0.1",
+    "nodemon": "^2.0.4",
+    "ts-jest": "^26.1.1",
+    "ts-node": "^8.10.2",
+    "typescript": "^3.9.6",
+    "xo": "^0.32.1"
+  },
+  "babel": {
+    "presets": [
+      "@babel/preset-react"
+    ]
+  },
+  "xo": {
+    "plugins": [
+      "jest"
+    ],
+    "extends": [
+      "xo-react/space",
+      "plugin:jest/recommended"
+    ],
+    "rules": {
+      "react/prop-types": "off"
+    },
+    "prettier": true
+  }
+}
