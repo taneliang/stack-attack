@@ -1,7 +1,7 @@
 import { Commit, Repository, NavigatorBackend } from "../NavigatorBackendType";
 
 import React, { useState, useEffect } from "react";
-import { Text, Color, Box, useInput, useStdout, useApp } from "ink";
+import { Text, Box, useInput, useStdout, useApp } from "ink";
 
 interface GraphLineProps {
   totalDepth: number;
@@ -26,12 +26,10 @@ const GraphLine: React.FC<GraphLineProps> = ({
   const secondLine = `${secondLineBars}${hasFork ? "/" : ""}`;
 
   return (
-    <Color cyan>
-      <Box height={2} flexDirection="column" paddingRight={1}>
-        <Text>{firstLine}</Text>
-        <Text>{secondLine}</Text>
-      </Box>
-    </Color>
+    <Box height={2} flexDirection="column" paddingRight={1}>
+      <Text color="cyan">{firstLine}</Text>
+      <Text color="cyan">{secondLine}</Text>
+    </Box>
   );
 };
 
@@ -40,24 +38,24 @@ interface CommitInfoProps {
 }
 const CommitInfo: React.FC<CommitInfoProps> = ({
   commit: { hash, timestamp, title, author, branchNames },
-}) => (
-  <Box flexDirection="row">
-    <Text>
-      <Color blueBright>{hash}</Color> -{" "}
-    </Text>
-    <Box flexDirection="column">
-      <Text>
-        <Color cyan>{timestamp.toISOString()}</Color>
-        {branchNames.length > 0 && (
-          <Color greenBright>{` (${branchNames.join(", ")})`}</Color>
-        )}
-      </Text>
-      <Text>
-        {title} - <Color blueBright>{author}</Color>
-      </Text>
+}) => {
+  return (
+    <Box flexDirection="row">
+      <Text color="blueBright">{hash} - </Text>
+      <Box flexDirection="column">
+        <Box>
+          <Text color="cyan">{timestamp.toISOString()}</Text>
+          {branchNames.length > 0 && (
+            <Text color="greenBright">{` (${branchNames.join(", ")})`}</Text>
+          )}
+        </Box>
+        <Text>
+          {title} - <Text color="blueBright">{author}</Text>
+        </Text>
+      </Box>
     </Box>
-  </Box>
-);
+  );
+};
 
 interface CommitGraphProps {
   rootCommit: Commit;
@@ -158,7 +156,7 @@ const App: React.FC<AppProps> = ({ backend, repoPath }) => {
     }
     if (key.leftArrow) {
       // Left arrow key pressed
-      stdout.write("LEFT Arrow");
+      stdout?.write("LEFT Arrow");
     }
   });
 
