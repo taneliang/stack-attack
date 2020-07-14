@@ -8,7 +8,7 @@
   },
   "scripts": {
     "cli": "ts-node ./src/cli/index.ts",
-    "cli:watch": "nodemon -x ts-node -e ts,tsx ./src/cli/index.ts",
+    "cli:watch": "nodemon -I -x ts-node -e ts,tsx ./src/cli/index.ts",
     "build": "tsc",
     "typecheck": "tsc --noEmit",
     "test": "xo && jest"
@@ -18,7 +18,7 @@
     "dist/ui.js"
   ],
   "dependencies": {
-    "ink": "^2.7.1",
+    "ink": "3.0.0-6",
     "meow": "^7.0.1",
     "nodegit": "^0.26.5",
     "prop-types": "^15.7.2",

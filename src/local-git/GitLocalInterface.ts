@@ -16,9 +16,8 @@ export class GitLocal implements NavigatorBackend {
     const repo = await nodegit.Repository.open(repoPath);
     for (let i = 0; i < commitStack.length; i++) {
       const commitMessage = "feature/new-branch"; //TODO: get the branch name from user
-      const newBranchName = `${commitMessage}-${i}`; //branch name is commit message - branch number
+      const newBranchName = `${commitMessage}-${i}`; //branch name is "commit message-branch number"
       commitStack[i].branchNames.push(newBranchName);
-      //Commit.create(repo, update_ref, author, committer, message_encoding, message, tree, parent_count, parents)
       const commitTarget = await nodegit.Commit.lookup(
         repo,
         commitStack[i].hash,
@@ -27,26 +26,40 @@ export class GitLocal implements NavigatorBackend {
     }
     return commitStack;
   }
-  //Actions
-  async pushCommitstoRepo(commitSingle: Commit, repoPath: string) {
-    try {
-      const repo = this.getRepositoryInformation(repoPath);
-      const tree = await nodegit.Commit.getTree(); //TODO: save the tree in the commit
-      //Commit.create(repo, update_ref, author, committer, message_encoding, message, tree, parent_count, parents)
-      return await nodegit.Commit.create(
-        repo,
-        null,
-        commitSingle.author,
-        commitSingle.timestamp,
-        "UTF-8",
-        commitSingle.title,
-        tree,
-        commitSingle.parentCommits.length,
-        commitSingle.parentCommits,
-      );
-    } catch (e) {
-      throw new Error(e.message);
-    }
+
+  //Actions: push to the origin repo
+  async pushCommitstoRepo(branchName: string, repoPath: string) {
+    let repo: nodegit.Repository, remote: nodegit.Remote;
+    //Local repo
+    await nodegit.Repository.open(repoPath)
+      .then(function (repoResult) {
+        repo = repoResult;
+        //get the origin repo
+        return repo.getRemote("origin");
+      })
+      .then(function (remoteResult) {
+        console.log("Remote loaded");
+        const remote = remoteResult;
+
+        //Configure and connect the remote repo
+        return remote.connect(nodegit.Enums.DIRECTION.PUSH, {
+          credentials: function (userName: string) {
+            return nodegit.Cred.sshKeyFromAgent(userName);
+          },
+        });
+      })
+      .then(function () {
+        console.log("Remote Connected?", remote.connected());
+        return remote.push([
+          `refs/heads/${branchName}:refs/heads/${branchName}`,
+        ]);
+      })
+      .then(function () {
+        console.log("Remote Pushed!");
+      })
+      .catch(function (error) {
+        console.log(error);
+      });
   }
   rebaseCommits(
     repoPath: string,
