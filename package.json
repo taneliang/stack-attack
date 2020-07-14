@@ -20,6 +20,7 @@
   "dependencies": {
     "ink": "3.0.0-6",
     "meow": "^7.0.1",
+    "nodegit": "^0.26.5",
     "prop-types": "^15.7.2",
     "react": "^16.13.1"
   },
@@ -27,6 +28,7 @@
     "@babel/preset-react": "^7.10.4",
     "@babel/register": "^7.10.4",
     "@types/jest": "^26.0.4",
+    "@types/nodegit": "^0.26.6",
     "chalk": "^4.1.0",
     "eslint-config-xo-react": "^0.23.0",
     "eslint-plugin-jest": "^23.18.0",
