@@ -14,11 +14,10 @@ export interface PullRequestInfo {
 }
 
 export interface Commit {
-  name: string;
-  hash: string;
-  timestamp: string;
-  author: string;
   title: string;
+  hash: string;
+  timestamp: Date;
+  author: string;
   branchNames: string[];
   pullRequestInfo?: PullRequestInfo;
 
