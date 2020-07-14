@@ -145,10 +145,9 @@ const App: React.FC<AppProps> = ({ backend, repoPath }) => {
       } = await backend.getRepositoryInformation(repoPath);
       setRepository(repo);
       setIsLoading(false);
-      await remoteRepoInfoPromise;
-      setRepository(repo);
+      setRepository(await remoteRepoInfoPromise);
     })();
-  }, [repository, isLoading, setRepository, setIsLoading]);
+  }, [backend, repoPath, repository, isLoading, setRepository, setIsLoading]);
 
   useInput((input, key) => {
     if (input === "q") {
