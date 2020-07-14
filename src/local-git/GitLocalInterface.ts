@@ -1,5 +1,5 @@
 import { Commit, Repository, NavigatorBackend } from "../NavigatorBackendType";
-const nodegit = require("nodegit");
+import nodegit from "nodegit";
 
 export class GitLocal implements NavigatorBackend {
   getRepositoryInformation(
@@ -13,19 +13,19 @@ export class GitLocal implements NavigatorBackend {
     repoPath: string,
     commitStack: Commit[],
   ): Promise<Commit[]> {
-    try {
-      const repo = this.getRepositoryInformation(repoPath);
-      for (let i = 0; i < commitStack.length; i++) {
-        const commitMessage = commitStack[i].title.replace(" ", "-"); //first word of the commit message's line
-        const newBranchName = `${commitMessage}-${i}`; //branch name is commit message -
-        commitStack[i].branchNames.push(newBranchName);
-        //Branch.create(repo, branch_name, target, force)
-        await nodegit.Branch.create(repo, newBranchName, commitStack[i], 1);
-      }
-      return commitStack;
-    } catch (e) {
-      throw new Error(e.message);
+    const repo = await nodegit.Repository.open(repoPath);
+    for (let i = 0; i < commitStack.length; i++) {
+      const commitMessage = "feature/new-branch"; //TODO: get the branch name from user
+      const newBranchName = `${commitMessage}-${i}`; //branch name is commit message - branch number
+      commitStack[i].branchNames.push(newBranchName);
+      //Commit.create(repo, update_ref, author, committer, message_encoding, message, tree, parent_count, parents)
+      const commitTarget = await nodegit.Commit.lookup(
+        repo,
+        commitStack[i].hash,
+      );
+      await nodegit.Branch.create(repo, newBranchName, commitTarget, 1);
     }
+    return commitStack;
   }
   //Actions
   async pushCommitstoRepo(commitSingle: Commit, repoPath: string) {
