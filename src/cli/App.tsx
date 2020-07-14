@@ -124,14 +124,38 @@ const CommitGraph: React.FC<CommitGraphProps> = ({ rootCommit }) => {
   return <Box flexDirection="column-reverse">{commitComponents}</Box>;
 };
 
+interface RepositoryComponentProps {
+  repository: Repository;
+}
+const RepositoryComponent: React.FC<RepositoryComponentProps> = ({
+  repository: { rootDisplayCommit },
+}) => {
+  const { exit } = useApp();
+  const { stdout } = useStdout();
+
+  useInput((input, key) => {
+    if (input === "q") {
+      exit();
+    }
+    if (key.leftArrow) {
+      // Left arrow key pressed
+      stdout?.write("LEFT Arrow");
+    }
+  });
+
+  return (
+    <Box flexDirection="column">
+      <CommitGraph rootCommit={rootDisplayCommit} />
+      <Text>TODO: Line of commands</Text>
+    </Box>
+  );
+};
+
 interface AppProps {
   repoPath: string;
   backend: NavigatorBackend;
 }
 const App: React.FC<AppProps> = ({ backend, repoPath }) => {
-  const { exit } = useApp();
-  const { stdout } = useStdout();
-
   const [repository, setRepository] = useState<Repository>();
   const [isLoading, setIsLoading] = useState(false);
 
@@ -149,26 +173,11 @@ const App: React.FC<AppProps> = ({ backend, repoPath }) => {
     })();
   }, [backend, repoPath, repository, isLoading, setRepository, setIsLoading]);
 
-  useInput((input, key) => {
-    if (input === "q") {
-      exit();
-    }
-    if (key.leftArrow) {
-      // Left arrow key pressed
-      stdout?.write("LEFT Arrow");
-    }
-  });
-
   if (!repository) {
     return <Text>{isLoading ? "Loading" : "Could not load repo"}</Text>;
   }
 
-  return (
-    <Box flexDirection="column">
-      <CommitGraph rootCommit={repository.rootDisplayCommit} />
-      <Text>TODO: Line of commands</Text>
-    </Box>
-  );
+  return <RepositoryComponent repository={repository} />;
 };
 
 export default App;
