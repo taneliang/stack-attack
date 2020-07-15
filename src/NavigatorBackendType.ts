@@ -2,7 +2,7 @@
  * Stores the view models and interface types between the UI layer and its
  * backend.
  */
-
+import nodegit from "nodegit";
 /**
  * A GitHub Pull Request, GitLab Merge Request, or similar.
  */
@@ -17,7 +17,7 @@ export interface Commit {
   title: string;
   hash: string;
   timestamp: Date;
-  author: string;
+  author: nodegit.Signature;
   branchNames: string[];
   pullRequestInfo?: PullRequestInfo;
 
