@@ -1,5 +1,5 @@
 import { Repository, Commit } from "../NavigatorBackendType";
-import { useReducer } from "react";
+import { useReducer, useEffect } from "react";
 
 export type DisplayCommit = {
   /** Backing commit */
@@ -21,18 +21,19 @@ type State = {
 };
 const initialState = {};
 
+type InitializeAction = {
+  type: "initialize";
+  payload: {
+    repository: Repository;
+  };
+};
 type MoveUpAction = {
   type: "move up";
 };
-type Action = MoveUpAction;
-
-function reducer(state: State, action: Action): State {
-  switch (action.type) {
-    case "move up": {
-      return state;
-    }
-  }
-}
+type MoveDownAction = {
+  type: "move down";
+};
+type Action = InitializeAction | MoveUpAction | MoveDownAction;
 
 function backendCommitGraphToDisplayCommits(
   backendRootCommit: Commit,
@@ -101,10 +102,99 @@ function backendCommitGraphToDisplayCommits(
   return displayCommits;
 }
 
-export function useInteractionReducer(repository: Repository) {
-  return useReducer(reducer, initialState, (partialState) => ({
-    ...partialState,
+function initializedState(repository: Repository): State {
+  return {
+    ...initialState,
     repository,
     commits: backendCommitGraphToDisplayCommits(repository.rootDisplayCommit),
-  }));
+  };
+}
+
+function indexOfFocusedCommit(commits: Readonly<DisplayCommit[]>): number {
+  return commits.findIndex(({ isFocused }) => isFocused);
+}
+
+function commitsWithAddedFocus(
+  commits: Readonly<DisplayCommit[]>,
+  focusIndex: number,
+): DisplayCommit[] {
+  if (focusIndex < 0) {
+    return [...commits];
+  }
+  const newCommits = commits.slice();
+  const commit: DisplayCommit = {
+    ...newCommits[focusIndex],
+    isFocused: true,
+  };
+  newCommits.splice(focusIndex, 1, commit);
+  return newCommits;
+}
+
+function commitsWithRemovedFocus(
+  commits: Readonly<DisplayCommit[]>,
+  focusIndex: number,
+): DisplayCommit[] {
+  if (focusIndex < 0) {
+    return [...commits];
+  }
+  const newCommits = commits.slice();
+  const commit: DisplayCommit = {
+    ...newCommits[focusIndex],
+    isFocused: false,
+  };
+  newCommits.splice(focusIndex, 1, commit);
+  return newCommits;
+}
+
+function commitsWithMovedFocus(
+  commits: Readonly<DisplayCommit[]>,
+  focusMover: (previousFocusIndex: number | undefined) => number,
+): DisplayCommit[] {
+  const existingFocusIndex = indexOfFocusedCommit(commits);
+  const newCommits = commitsWithRemovedFocus(commits, existingFocusIndex);
+
+  const newFocusIndex =
+    focusMover(existingFocusIndex === -1 ? undefined : existingFocusIndex) %
+    newCommits.length;
+  return commitsWithAddedFocus(newCommits, newFocusIndex);
+}
+
+function reducer(state: Readonly<State>, action: Action): State {
+  switch (action.type) {
+    case "initialize": {
+      return initializedState(action.payload.repository);
+    }
+    case "move up": {
+      return {
+        ...state,
+        commits: commitsWithMovedFocus(state.commits, (focusIndex) =>
+          focusIndex === undefined ? 0 : focusIndex + 1,
+        ),
+      };
+    }
+    case "move down": {
+      const numCommits = state.commits.length;
+      return {
+        ...state,
+        commits: commitsWithMovedFocus(
+          state.commits,
+          (focusIndex) => (focusIndex ?? numCommits) - 1 + numCommits,
+        ),
+      };
+    }
+  }
+}
+
+export function useInteractionReducer(
+  repository: Repository,
+): [State, React.Dispatch<Action>] {
+  const [state, dispatch] = useReducer(reducer, initialState, () =>
+    initializedState(repository),
+  );
+
+  useEffect(() => {
+    dispatch({ type: "initialize", payload: { repository } });
+  }, [repository]);
+
+  return [state, dispatch];
 }

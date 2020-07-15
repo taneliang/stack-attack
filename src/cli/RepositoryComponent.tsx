@@ -1,21 +1,23 @@
-import type { Commit, Repository } from "../NavigatorBackendType";
+import type { Repository } from "../NavigatorBackendType";
 
 import React from "react";
-import { Text, Box, useInput, useApp, useFocus } from "ink";
+import { Text, Box, useInput, useApp } from "ink";
 import { useInteractionReducer, DisplayCommit } from "./useInteractionReducer";
 
 interface GraphLineProps {
   totalDepth: number;
   commitDepth: number;
   hasFork: boolean;
+  isFocused: boolean;
 }
 const GraphLine: React.FC<GraphLineProps> = ({
   totalDepth,
   commitDepth,
   hasFork,
+  isFocused,
 }) => {
   const firstLine = Array.from({ length: totalDepth }, (_, i) => i)
-    .map((_, idx) => (idx === commitDepth ? "*" : "|"))
+    .map((_, idx) => (idx === commitDepth ? (isFocused ? ">" : "*") : "|"))
     .join(" ");
 
   const secondLineBars = Array.from(
@@ -35,12 +37,14 @@ const GraphLine: React.FC<GraphLineProps> = ({
 };
 
 interface CommitInfoProps {
-  commit: Commit;
+  displayCommit: DisplayCommit;
 }
 const CommitInfo: React.FC<CommitInfoProps> = ({
-  commit: { hash, timestamp, title, author, branchNames },
+  displayCommit: {
+    commit: { hash, timestamp, title, author, branchNames },
+    isFocused,
+  },
 }) => {
-  const { isFocused } = useFocus();
   return (
     <Box flexDirection="row">
       <Text>
@@ -67,18 +71,19 @@ const CommitInfo: React.FC<CommitInfoProps> = ({
 };
 
 interface CommitGraphProps {
-  commits: DisplayCommit[];
+  displayCommits: DisplayCommit[];
 }
-const CommitGraph: React.FC<CommitGraphProps> = ({ commits }) => (
+const CommitGraph: React.FC<CommitGraphProps> = ({ displayCommits }) => (
   <Box flexDirection="column-reverse">
-    {commits.map(({ commit, totalDepth, commitDepth, hasFork }) => (
-      <Box key={commit.hash} flexDirection="row">
+    {displayCommits.map((displayCommit) => (
+      <Box key={displayCommit.commit.hash} flexDirection="row">
         <GraphLine
-          totalDepth={totalDepth}
-          commitDepth={commitDepth}
-          hasFork={hasFork}
+          totalDepth={displayCommit.totalDepth}
+          commitDepth={displayCommit.commitDepth}
+          hasFork={displayCommit.hasFork}
+          isFocused={displayCommit.isFocused}
         />
-        <CommitInfo commit={commit} />
+        <CommitInfo displayCommit={displayCommit} />
       </Box>
     ))}
   </Box>
@@ -97,15 +102,16 @@ export const RepositoryComponent: React.FC<RepositoryComponentProps> = ({
   useInput((input, key) => {
     if (input === "q") {
       exit();
-    }
-    if (key.upArrow) {
+    } else if (key.upArrow) {
       dispatch({ type: "move up" });
+    } else if (key.downArrow) {
+      dispatch({ type: "move down" });
     }
   });
 
   return (
     <Box flexDirection="column">
-      <CommitGraph commits={state.commits} />
+      <CommitGraph displayCommits={state.commits} />
       <Text>TODO: Line of commands</Text>
     </Box>
   );
