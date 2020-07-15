@@ -9,15 +9,19 @@ interface GraphLineProps {
   commitDepth: number;
   hasFork: boolean;
   isFocused: boolean;
+  isBeingMoved: boolean;
 }
 const GraphLine: React.FC<GraphLineProps> = ({
   totalDepth,
   commitDepth,
   hasFork,
   isFocused,
+  isBeingMoved,
 }) => {
   const firstLine = Array.from({ length: totalDepth }, (_, i) => i)
-    .map((_, idx) => (idx === commitDepth ? (isFocused ? ">" : "*") : "|"))
+    .map((_, idx) =>
+      idx === commitDepth ? (isBeingMoved ? "@" : isFocused ? ">" : "*") : "|",
+    )
     .join(" ");
 
   const secondLineBars = Array.from(
@@ -43,11 +47,12 @@ const CommitInfo: React.FC<CommitInfoProps> = ({
   displayCommit: {
     commit: { hash, timestamp, title, author, branchNames },
     isFocused,
+    isBeingMoved,
   },
 }) => {
   return (
     <Box flexDirection="row">
-      <Text>
+      <Text dimColor={isBeingMoved}>
         <Text
           color="blueBright"
           backgroundColor={isFocused ? "yellow" : "none"}>
@@ -82,6 +87,7 @@ const CommitGraph: React.FC<CommitGraphProps> = ({ displayCommits }) => (
           commitDepth={displayCommit.commitDepth}
           hasFork={displayCommit.hasFork}
           isFocused={displayCommit.isFocused}
+          isBeingMoved={displayCommit.isBeingMoved}
         />
         <CommitInfo displayCommit={displayCommit} />
       </Box>
@@ -103,9 +109,11 @@ export const RepositoryComponent: React.FC<RepositoryComponentProps> = ({
     if (input === "q") {
       exit();
     } else if (key.upArrow) {
-      dispatch({ type: "move up" });
+      dispatch({ type: "key", payload: { key: "↑" } });
     } else if (key.downArrow) {
-      dispatch({ type: "move down" });
+      dispatch({ type: "key", payload: { key: "↓" } });
+    } else {
+      dispatch({ type: "key", payload: { key: input } });
     }
   });
 
