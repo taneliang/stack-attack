@@ -1,5 +1,5 @@
 import { Repository, Commit } from "../NavigatorBackendType";
-import { useReducer } from "react";
+import { useReducer, useEffect } from "react";
 
 export type DisplayCommit = {
   /** Backing commit */
@@ -21,18 +21,16 @@ type State = {
 };
 const initialState = {};
 
+type InitializeAction = {
+  type: "initialize";
+  payload: {
+    repository: Repository;
+  };
+};
 type MoveUpAction = {
   type: "move up";
 };
-type Action = MoveUpAction;
-
-function reducer(state: State, action: Action): State {
-  switch (action.type) {
-    case "move up": {
-      return state;
-    }
-  }
-}
+type Action = InitializeAction | MoveUpAction;
 
 function backendCommitGraphToDisplayCommits(
   backendRootCommit: Commit,
@@ -101,10 +99,35 @@ function backendCommitGraphToDisplayCommits(
   return displayCommits;
 }
 
-export function useInteractionReducer(repository: Repository) {
-  return useReducer(reducer, initialState, (partialState) => ({
-    ...partialState,
+function initializedState(repository: Repository): State {
+  return {
+    ...initialState,
     repository,
     commits: backendCommitGraphToDisplayCommits(repository.rootDisplayCommit),
-  }));
+  };
+}
+
+function reducer(state: State, action: Action): State {
+  switch (action.type) {
+    case "initialize": {
+      return initializedState(action.payload.repository);
+    }
+    case "move up": {
+      return state;
+    }
+  }
+}
+
+export function useInteractionReducer(
+  repository: Repository,
+): [State, React.Dispatch<Action>] {
+  const [state, dispatch] = useReducer(reducer, initialState, () =>
+    initializedState(repository),
+  );
+
+  useEffect(() => {
+    dispatch({ type: "initialize", payload: { repository } });
+  }, [repository]);
+
+  return [state, dispatch];
 }
