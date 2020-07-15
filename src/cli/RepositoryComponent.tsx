@@ -1,4 +1,4 @@
-import type { Repository } from "../NavigatorBackendType";
+import type { Repository, NavigatorBackend } from "../NavigatorBackendType";
 
 import React from "react";
 import { Text, Box, useInput, useApp } from "ink";
@@ -96,24 +96,26 @@ const CommitGraph: React.FC<CommitGraphProps> = ({ displayCommits }) => (
 );
 
 interface RepositoryComponentProps {
+  backend: NavigatorBackend;
   repository: Repository;
 }
 export const RepositoryComponent: React.FC<RepositoryComponentProps> = ({
+  backend,
   repository,
 }) => {
   const { exit } = useApp();
 
-  const [state, dispatch] = useInteractionReducer(repository);
+  const [state, dispatch] = useInteractionReducer(backend, repository);
 
   useInput((input, key) => {
     if (input === "q") {
       exit();
     } else if (key.upArrow) {
-      dispatch({ type: "key", payload: { key: "↑" } });
+      dispatch({ type: "key", payload: { key: "↑", dispatch } });
     } else if (key.downArrow) {
-      dispatch({ type: "key", payload: { key: "↓" } });
+      dispatch({ type: "key", payload: { key: "↓", dispatch } });
     } else {
-      dispatch({ type: "key", payload: { key: input } });
+      dispatch({ type: "key", payload: { key: input, dispatch } });
     }
   });
 
