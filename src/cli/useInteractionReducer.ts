@@ -233,14 +233,62 @@ function stateForNormalMode(state: State): State {
 
 function stateForRebaseMode(state: State): State {
   const { commits } = state;
+
   const focusedCommitIndex = indexOfFocusedCommit(commits);
-  // TODO: Bail if no focus
+  // Bail if no focus
+  if (focusedCommitIndex === -1) {
+    return stateForNormalMode(state);
+  }
   const rebaseRoot = commits[focusedCommitIndex];
-  // TODO: Bail if commit has no parent or multiple parents
+
+  // Bail if commit has no parent or multiple parents
+  // TODO: Figure out how to rebase merge commits and initial commits
+  if (rebaseRoot.commit.parentCommits.length !== 1) {
+    return stateForNormalMode(state);
+  }
   const originalRebaseRootParent = rebaseRoot.commit.parentCommits[0];
+
+  // Mark commits as being moved.
+  // Loop from earliest to latest commit (assumes commits is sorted in ascending
+  // order of timestamp), marking is moving if parent is being moved.
+  // O(commits.length) time and space.
+  const movingHashes = new Set([rebaseRoot.commit.hash]);
+  let newCommits = commits.map((displayCommit) => {
+    const { hash, parentCommits } = displayCommit.commit;
+    if (hash === rebaseRoot.commit.hash) {
+      return {
+        ...displayCommit,
+        isBeingMoved: true,
+      };
+    }
+
+    // TODO: Handle merge commits; we currently just ignore them
+    if (parentCommits.length !== 1) {
+      return displayCommit;
+    }
+    const parentHash = parentCommits[0].hash;
+    if (!movingHashes.has(parentHash)) {
+      return displayCommit;
+    }
+    movingHashes.add(hash);
+    return {
+      ...displayCommit,
+      isBeingMoved: true,
+    };
+  });
+
+  // Move focus to originalRebaseRootParent
+  newCommits = commitsWithMovedFocus(newCommits, () => {
+    const originalRebaseRootParentHash = originalRebaseRootParent.hash;
+    // We know indexOfRebaseRootParent must not be -1 as we know the parent exists
+    return newCommits.findIndex(
+      ({ commit: { hash } }) => hash === originalRebaseRootParentHash,
+    );
+  });
 
   return {
     ...state,
+    commits: newCommits,
     modeState: {
       type: "rebase",
       rebaseRoot,
@@ -254,7 +302,20 @@ function stateForRebaseMode(state: State): State {
           key: "a",
           name: "abort rebase",
           handler(state) {
-            return stateForNormalMode(state);
+            // Unmark commits as being moved
+            const newState = {
+              ...state,
+              commits: state.commits.map((displayCommit) => {
+                if (displayCommit.isBeingMoved) {
+                  return {
+                    ...displayCommit,
+                    isBeingMoved: false,
+                  };
+                }
+                return displayCommit;
+              }),
+            };
+            return stateForNormalMode(newState);
           },
         },
       ],
