@@ -102,9 +102,10 @@ export const RepositoryComponent: React.FC<RepositoryComponentProps> = ({
   useInput((input, key) => {
     if (input === "q") {
       exit();
-    }
-    if (key.upArrow) {
+    } else if (key.upArrow) {
       dispatch({ type: "move up" });
+    } else if (key.downArrow) {
+      dispatch({ type: "move down" });
     }
   });
 
