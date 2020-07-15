@@ -15,11 +15,32 @@ export type DisplayCommit = {
   isBeingMoved: boolean;
 };
 
+type Command = {
+  key: string;
+  name: string;
+  handler: (state: State) => State;
+};
+
+type NormalModeState = {
+  type: "normal";
+};
+type RebaseModeState = {
+  type: "rebase";
+  rebaseRoot: DisplayCommit;
+  originalRebaseRootParent: Commit;
+  selectedRebaseTarget: Commit;
+};
+
 type State = {
   repository: Repository;
   commits: DisplayCommit[];
+  modeState: NormalModeState | RebaseModeState;
+  keyboardCommands: Map<string, Command>;
 };
-const initialState = {};
+const initialState: Pick<State, "modeState" | "keyboardCommands"> = {
+  modeState: { type: "normal" },
+  keyboardCommands: new Map(),
+};
 
 type InitializeAction = {
   type: "initialize";
@@ -27,13 +48,13 @@ type InitializeAction = {
     repository: Repository;
   };
 };
-type MoveUpAction = {
-  type: "move up";
+type KeyAction = {
+  type: "key";
+  payload: {
+    key: string;
+  };
 };
-type MoveDownAction = {
-  type: "move down";
-};
-type Action = InitializeAction | MoveUpAction | MoveDownAction;
+type Action = InitializeAction | KeyAction;
 
 function backendCommitGraphToDisplayCommits(
   backendRootCommit: Commit,
@@ -103,11 +124,11 @@ function backendCommitGraphToDisplayCommits(
 }
 
 function initializedState(repository: Repository): State {
-  return {
+  return stateForNormalMode({
     ...initialState,
     repository,
     commits: backendCommitGraphToDisplayCommits(repository.rootDisplayCommit),
-  };
+  });
 }
 
 function indexOfFocusedCommit(commits: Readonly<DisplayCommit[]>): number {
@@ -159,28 +180,99 @@ function commitsWithMovedFocus(
   return commitsWithAddedFocus(newCommits, newFocusIndex);
 }
 
+function stateForNormalMode(state: State): State {
+  return {
+    ...state,
+    modeState: {
+      type: "normal",
+    },
+    keyboardCommands: new Map([
+      [
+        "↑",
+        {
+          key: "↑",
+          name: "next commit",
+          handler: (state) => ({
+            ...state,
+            commits: commitsWithMovedFocus(state.commits, (focusIndex) =>
+              focusIndex === undefined ? 0 : focusIndex + 1,
+            ),
+          }),
+        },
+      ],
+      [
+        "↓",
+        {
+          key: "↓",
+          name: "previous commit",
+          handler(state) {
+            const numCommits = state.commits.length;
+            return {
+              ...state,
+              commits: commitsWithMovedFocus(
+                state.commits,
+                (focusIndex) => (focusIndex ?? numCommits) - 1 + numCommits,
+              ),
+            };
+          },
+        },
+      ],
+      [
+        "r",
+        {
+          key: "r",
+          name: "begin rebase",
+          handler(state) {
+            return stateForRebaseMode(state);
+          },
+        },
+      ],
+    ]),
+  };
+}
+
+function stateForRebaseMode(state: State): State {
+  const { commits } = state;
+  const focusedCommitIndex = indexOfFocusedCommit(commits);
+  // TODO: Bail if no focus
+  const rebaseRoot = commits[focusedCommitIndex];
+  // TODO: Bail if commit has no parent or multiple parents
+  const originalRebaseRootParent = rebaseRoot.commit.parentCommits[0];
+
+  return {
+    ...state,
+    modeState: {
+      type: "rebase",
+      rebaseRoot,
+      originalRebaseRootParent,
+      selectedRebaseTarget: originalRebaseRootParent,
+    },
+    keyboardCommands: new Map([
+      [
+        "a",
+        {
+          key: "a",
+          name: "abort rebase",
+          handler(state) {
+            return stateForNormalMode(state);
+          },
+        },
+      ],
+    ]),
+  };
+}
+
 function reducer(state: Readonly<State>, action: Action): State {
   switch (action.type) {
     case "initialize": {
       return initializedState(action.payload.repository);
     }
-    case "move up": {
-      return {
-        ...state,
-        commits: commitsWithMovedFocus(state.commits, (focusIndex) =>
-          focusIndex === undefined ? 0 : focusIndex + 1,
-        ),
-      };
-    }
-    case "move down": {
-      const numCommits = state.commits.length;
-      return {
-        ...state,
-        commits: commitsWithMovedFocus(
-          state.commits,
-          (focusIndex) => (focusIndex ?? numCommits) - 1 + numCommits,
-        ),
-      };
+    case "key": {
+      const command = state.keyboardCommands.get(action.payload.key);
+      if (!command) {
+        return state;
+      }
+      return command.handler(state);
     }
   }
 }
@@ -188,7 +280,7 @@ function reducer(state: Readonly<State>, action: Action): State {
 export function useInteractionReducer(
   repository: Repository,
 ): [State, React.Dispatch<Action>] {
-  const [state, dispatch] = useReducer(reducer, initialState, () =>
+  const [state, dispatch] = useReducer(reducer, {}, () =>
     initializedState(repository),
   );
 

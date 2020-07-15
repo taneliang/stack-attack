@@ -103,9 +103,11 @@ export const RepositoryComponent: React.FC<RepositoryComponentProps> = ({
     if (input === "q") {
       exit();
     } else if (key.upArrow) {
-      dispatch({ type: "move up" });
+      dispatch({ type: "key", payload: { key: "↑" } });
     } else if (key.downArrow) {
-      dispatch({ type: "move down" });
+      dispatch({ type: "key", payload: { key: "↓" } });
+    } else {
+      dispatch({ type: "key", payload: { key: input } });
     }
   });
 
