@@ -297,6 +297,52 @@ function stateForRebaseMode(state: State): State {
     },
     keyboardCommands: new Map([
       [
+        "↑",
+        {
+          key: "↑",
+          name: "next rebase target",
+          handler: (state) => ({
+            ...state,
+            commits: commitsWithMovedFocus(state.commits, (focusIndex) => {
+              const numCommits = state.commits.length;
+              let proposedIndex = focusIndex ?? 0;
+              let i = 0; // Prevents infinite loops
+              do {
+                proposedIndex = (proposedIndex + 1) % numCommits;
+                i++;
+                if (i > numCommits) {
+                  return focusIndex ?? 0;
+                }
+              } while (state.commits[proposedIndex].isBeingMoved);
+              return proposedIndex;
+            }),
+          }),
+        },
+      ],
+      [
+        "↓",
+        {
+          key: "↓",
+          name: "previous rebase target",
+          handler: (state) => ({
+            ...state,
+            commits: commitsWithMovedFocus(state.commits, (focusIndex) => {
+              const numCommits = state.commits.length;
+              let proposedIndex = focusIndex ?? numCommits;
+              let i = 0; // Prevents infinite loops
+              do {
+                proposedIndex = (proposedIndex - 1 + numCommits) % numCommits;
+                i++;
+                if (i > numCommits) {
+                  return focusIndex ?? 0;
+                }
+              } while (state.commits[proposedIndex].isBeingMoved);
+              return proposedIndex;
+            }),
+          }),
+        },
+      ],
+      [
         "a",
         {
           key: "a",
