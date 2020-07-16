@@ -1,4 +1,9 @@
-import { Commit, Repository, PullRequestInfo, NavigatorBackend } from "../NavigatorBackendType";
+import {
+  Commit,
+  Repository,
+  PullRequestInfo,
+  NavigatorBackend,
+} from "../NavigatorBackendType";
 import nodegit from "nodegit";
 import { getOctokit } from "../github-integration/authentication";
 
@@ -11,14 +16,12 @@ export class GitLocal implements NavigatorBackend {
     const refs = await repo.getReferences();
     const headHash = (await repo.getHeadCommit()).sha();
     const branchCommits = await Promise.all(
-      refs.map(
-        async (ref: nodegit.Reference) => await repo.getBranchCommit(ref),
-      ),
+      refs.map(async (ref: nodegit.Reference) => repo.getBranchCommit(ref)),
     );
     const branchNames: string[] = refs.map((ref: nodegit.Reference) =>
       ref.name(),
     );
-    let interestingCommit = branchCommits[0];
+    const interestingCommit = branchCommits[0];
     let baseMostCommit = nodegit.Oid.fromString(interestingCommit.sha());
     if (branchCommits.length > 1) {
       baseMostCommit = await branchCommits.reduce(
@@ -34,6 +37,7 @@ export class GitLocal implements NavigatorBackend {
         Promise.resolve(nodegit.Oid.fromString(interestingCommit.sha())),
       );
     }
+
     const baseCommitLookup = await nodegit.Commit.lookup(repo, baseMostCommit);
     const commitHashDict = new Map<string, Commit>();
     await Promise.all(
@@ -82,12 +86,12 @@ export class GitLocal implements NavigatorBackend {
               const childrenHashes = commitChildrenMap.get(sha)!;
               childrenHashes.forEach((childHash) => {
                 const childCommit = commitHashDict.get(childHash)!;
-                childCommit.parentCommits = Array.from(
-                  new Set([...childCommit.parentCommits, newCommit]),
-                );
-                newCommit.childCommits = Array.from(
-                  new Set([...newCommit.childCommits, childCommit]),
-                );
+                childCommit.parentCommits = [
+                  ...new Set([...childCommit.parentCommits, newCommit]),
+                ];
+                newCommit.childCommits = [
+                  ...new Set([...newCommit.childCommits, childCommit]),
+                ];
               });
             }
 
@@ -99,6 +103,7 @@ export class GitLocal implements NavigatorBackend {
               if (!commitChildrenMap.has(parentHash)) {
                 commitChildrenMap.set(parentHash, new Set());
               }
+
               commitChildrenMap.get(parentHash)!.add(sha);
             });
           });
@@ -139,7 +144,7 @@ export class GitLocal implements NavigatorBackend {
       }),
     });
 
-    // const rootDisplayCommit = {
+    // Const rootDisplayCommit = {
     //   title: baseCommitLookup.summary(),
     //   hash: baseCommitLookup.sha(),
     //   timestamp: baseCommitLookup.timeMs(),
@@ -191,7 +196,7 @@ export class GitLocal implements NavigatorBackend {
     };
   }
 
-  getPullRequestInfo = (
+  getPullRequestInfo(
     _: string,
     __: nodegit.Repository,
     ___: string,
@@ -201,43 +206,43 @@ export class GitLocal implements NavigatorBackend {
       shortName: "google",
       isOutdated: true,
     };
-  };
-  //Actions
+  }
+
+  // Actions
   async createOrUpdateBranchesForCommitStack(
     repoPath: string,
     commitStack: Commit[],
   ): Promise<Commit[]> {
     const repo = await nodegit.Repository.open(repoPath);
-    for (let i = 0; i < commitStack.length; i++) {
-      const commitMessage = "feature/new-branch"; //TODO: get the branch name from user
-      const newBranchName = `${commitMessage}-${i}`; //branch name is "commit message-branch number"
-      commitStack[i].branchNames.push(newBranchName);
-      const commitTarget = await nodegit.Commit.lookup(
-        repo,
-        commitStack[i].hash,
-      );
+    for (const [i, element] of commitStack.entries()) {
+      const commitMessage = "feature/new-branch"; // TODO: get the branch name from user
+      const newBranchName = `${commitMessage}-${i}`; // Branch name is "commit message-branch number"
+      element.branchNames.push(newBranchName);
+      const commitTarget = await nodegit.Commit.lookup(repo, element.hash);
       await nodegit.Branch.create(repo, newBranchName, commitTarget, 1);
     }
+
     return commitStack;
   }
 
-  //Actions: push to the origin repo
+  // Actions: push to the origin repo
   pushCommitstoRepo(branchName: string, repoPath: string) {
-    let repo: nodegit.Repository, remote: nodegit.Remote;
-    //Local repo
+    let repo: nodegit.Repository;
+    let remote: nodegit.Remote;
+    // Local repo
     return nodegit.Repository.open(repoPath)
       .then(function (repoResult) {
         repo = repoResult;
-        //get the origin repo
+        // Get the origin repo
         return repo.getRemote("origin");
       })
       .then(function (remoteResult) {
         console.log("Remote loaded");
         remote = remoteResult;
 
-        //Configure and connect the remote repo
+        // Configure and connect the remote repo
         return remote.connect(nodegit.Enums.DIRECTION.PUSH, {
-          credentials: function (userName: string) {
+          credentials(userName: string) {
             return nodegit.Cred.sshKeyFromAgent(userName);
           },
         });
@@ -255,88 +260,112 @@ export class GitLocal implements NavigatorBackend {
         console.log(error);
       });
   }
+
   async rebaseCommits(
     repoPath: string,
     rootCommit: Commit,
     targetCommit: Commit,
   ): Promise<Commit> {
-    const repo = await nodegit.Repository.open(repoPath)
-    const targetCommitLookup: nodegit.Commit = await nodegit.Commit.lookup(repo,nodegit.Oid.fromString(targetCommit.hash))
-    const rootCommitLookup: nodegit.Commit = await nodegit.Commit.lookup(repo, nodegit.Oid.fromString(rootCommit.hash))
-    // 1. Rebase each child Commit of the root commit on the target commit 
+    const repo = await nodegit.Repository.open(repoPath);
+    const targetCommitLookup: nodegit.Commit = await nodegit.Commit.lookup(
+      repo,
+      nodegit.Oid.fromString(targetCommit.hash),
+    );
+    const rootCommitLookup: nodegit.Commit = await nodegit.Commit.lookup(
+      repo,
+      nodegit.Oid.fromString(rootCommit.hash),
+    );
+    // 1. Rebase each child Commit of the root commit on the target commit
     // (I'm assuming git reset --HARD needs to be done in the case of having multiple branch names??)
     // 2. Add the children of each child to a queue
     // 3. Iterate 1->2 till queue is empty
-    const commitQueue: Commit[] = [rootCommit]
-    let stackAttackCommit = rootCommit
-    let commitToRebase = targetCommitLookup
-    while(!(commitQueue.length === 0)){
-      const childCommit = commitQueue.splice(0,1)[0]
-      const childCommitLookup: nodegit.Commit = await nodegit.Commit.lookup(repo, nodegit.Oid.fromString(childCommit.hash))
+    const commitQueue: Commit[] = [rootCommit];
+    let stackAttackCommit = rootCommit;
+    let commitToRebase = targetCommitLookup;
+    while (!(commitQueue.length === 0)) {
+      const childCommit = commitQueue.splice(0, 1)[0];
+      const childCommitLookup: nodegit.Commit = await nodegit.Commit.lookup(
+        repo,
+        nodegit.Oid.fromString(childCommit.hash),
+      );
       // Rebase each child commit on target Commit - TODO: GET HELP - Can use CherryPick
       // Using CherryPick
-      const status = nodegit.Cherrypick.commit(repo, commitToRebase, childCommitLookup, 0, {})
+      const status = nodegit.Cherrypick.commit(
+        repo,
+        commitToRebase,
+        childCommitLookup,
+        0,
+        {},
+      );
       // Can have multiple names so, git reset HARD :check:
       childCommit.branchNames.map(async (branchName: string) => {
         // Target Commit Lookup will change if we use CherryPick
-        const reference = await nodegit.Branch.create(repo, branchName, targetCommitLookup, 1)
-      })
-      commitToRebase = childCommitLookup    
-      stackAttackCommit = childCommit 
+        const reference = await nodegit.Branch.create(
+          repo,
+          branchName,
+          targetCommitLookup,
+          1,
+        );
+      });
+      commitToRebase = childCommitLookup;
+      stackAttackCommit = childCommit;
     }
-    
-    return Promise.resolve(stackAttackCommit)
+
+    return Promise.resolve(stackAttackCommit);
   }
 
   amendAndRebaseDependentTree(repoPath: string): Promise<Commit> {
     return Promise.reject("NOT IMPLEMENTED");
   }
-  //octokit.pulls.create({owner, repo, title, head, base, body, maintainer_can_modify, draft});
+
+  // Octokit.pulls.create({owner, repo, title, head, base, body, maintainer_can_modify, draft});
   async createOrUpdatePRsForCommits(
     repoPath: string,
     commitStack: Commit[],
   ): Promise<Commit[]> {
-    //create branch for each commit
+    // Create branch for each commit
     commitStack = await this.createOrUpdateBranchesForCommitStack(
       repoPath,
       commitStack,
     );
 
-    //get information for octokit.pulls.create()
+    // Get information for octokit.pulls.create()
     const repoResult = await nodegit.Repository.open(repoPath);
     const remoteResult = await repoResult.getRemote("origin");
     const remoteURL = await remoteResult.url();
-    //sample URL: "https://github.com/taneliang/stack-attack"
+    // Sample URL: "https://github.com/taneliang/stack-attack"
     const repoName = remoteURL.split("/").pop() ?? "invalid repo";
     const owner = remoteURL.split("/")[3];
     const octokit = getOctokit(repoPath);
-    //for each commit/branch in the stack
+    // For each commit/branch in the stack
     for (let i = 0; i < commitStack.length; i++) {
       const lastIndex = commitStack[i].branchNames.length - 1;
       const branchName = commitStack[i].branchNames[lastIndex];
 
-      //push the commits to that branch on the remote repository
+      // Push the commits to that branch on the remote repository
       await this.pushCommitstoRepo(branchName, repoPath);
 
-      //find the base branch
+      // Find the base branch
       let baseName: string;
       if (i === 0) baseName = "master";
       else {
         const lastIndexofLastCommit = commitStack[i - 1].branchNames.length - 1;
         baseName = commitStack[i - 1].branchNames[lastIndexofLastCommit];
       }
-      //create PR for that branch
+
+      // Create PR for that branch
       await octokit.pulls.create({
-        owner: owner,
+        owner,
         repo: repoName,
         title: commitStack[i].title,
         head: branchName,
-        base: baseName, //TODO: ask the user the base
-        body: commitStack[i].title, //TODO: description for PR
+        base: baseName, // TODO: ask the user the base
+        body: commitStack[i].title, // TODO: description for PR
         maintainer_can_modify: true,
-        draft: true, //draft PR default
+        draft: true, // Draft PR default
       });
     }
+
     return commitStack;
   }
 }
