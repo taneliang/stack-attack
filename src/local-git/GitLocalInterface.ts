@@ -255,13 +255,39 @@ export class GitLocal implements NavigatorBackend {
         console.log(error);
       });
   }
-  rebaseCommits(
+  async rebaseCommits(
     repoPath: string,
     rootCommit: Commit,
     targetCommit: Commit,
   ): Promise<Commit> {
-    return Promise.reject("NOT IMPLEMENTED");
+    const repo = await nodegit.Repository.open(repoPath)
+    const targetCommitLookup: nodegit.Commit = await nodegit.Commit.lookup(repo,nodegit.Oid.fromString(targetCommit.hash))
+    const rootCommitLookup: nodegit.Commit = await nodegit.Commit.lookup(repo, nodegit.Oid.fromString(rootCommit.hash))
+    // 1. Rebase each child Commit of the root commit on the target commit 
+    // (I'm assuming git reset --HARD needs to be done in the case of having multiple branch names??)
+    // 2. Add the children of each child to a queue
+    // 3. Iterate 1->2 till queue is empty
+    const commitQueue: Commit[] = [rootCommit]
+    let stackAttackCommit = rootCommit
+    let commitToRebase = targetCommitLookup
+    while(!(commitQueue.length === 0)){
+      const childCommit = commitQueue.splice(0,1)[0]
+      const childCommitLookup: nodegit.Commit = await nodegit.Commit.lookup(repo, nodegit.Oid.fromString(childCommit.hash))
+      // Rebase each child commit on target Commit - TODO: GET HELP - Can use CherryPick
+      // Using CherryPick
+      const status = nodegit.Cherrypick.commit(repo, commitToRebase, childCommitLookup, 0, {})
+      // Can have multiple names so, git reset HARD :check:
+      childCommit.branchNames.map(async (branchName: string) => {
+        // Target Commit Lookup will change if we use CherryPick
+        const reference = await nodegit.Branch.create(repo, branchName, targetCommitLookup, 1)
+      })
+      commitToRebase = childCommitLookup    
+      stackAttackCommit = childCommit 
+    }
+    
+    return Promise.resolve(stackAttackCommit)
   }
+
   amendAndRebaseDependentTree(repoPath: string): Promise<Commit> {
     return Promise.reject("NOT IMPLEMENTED");
   }
