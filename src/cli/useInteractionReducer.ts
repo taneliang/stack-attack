@@ -1,4 +1,4 @@
-import { Repository, Commit } from "../NavigatorBackendType";
+import { Repository, Commit, NavigatorBackend } from "../NavigatorBackendType";
 import { useReducer, useEffect } from "react";
 
 export type DisplayCommit = {
@@ -18,7 +18,7 @@ export type DisplayCommit = {
 type Command = {
   key: string;
   name: string;
-  handler: (state: State) => State;
+  handler: (state: State, action: KeyAction) => State;
 };
 
 type NormalModeState = {
@@ -27,11 +27,10 @@ type NormalModeState = {
 type RebaseModeState = {
   type: "rebase";
   rebaseRoot: DisplayCommit;
-  originalRebaseRootParent: Commit;
-  selectedRebaseTarget: Commit;
 };
 
 type State = {
+  backend: NavigatorBackend;
   repository: Repository;
   commits: DisplayCommit[];
   modeState: NormalModeState | RebaseModeState;
@@ -45,6 +44,7 @@ const initialState: Pick<State, "modeState" | "keyboardCommands"> = {
 type InitializeAction = {
   type: "initialize";
   payload: {
+    backend: NavigatorBackend;
     repository: Repository;
   };
 };
@@ -52,6 +52,7 @@ type KeyAction = {
   type: "key";
   payload: {
     key: string;
+    dispatch: React.Dispatch<Action>;
   };
 };
 type Action = InitializeAction | KeyAction;
@@ -123,9 +124,13 @@ function backendCommitGraphToDisplayCommits(
   return displayCommits;
 }
 
-function initializedState(repository: Repository): State {
+function initializedState(
+  backend: NavigatorBackend,
+  repository: Repository,
+): State {
   return stateForNormalMode({
     ...initialState,
+    backend,
     repository,
     commits: backendCommitGraphToDisplayCommits(repository.rootDisplayCommit),
   });
@@ -292,10 +297,54 @@ function stateForRebaseMode(state: State): State {
     modeState: {
       type: "rebase",
       rebaseRoot,
-      originalRebaseRootParent,
-      selectedRebaseTarget: originalRebaseRootParent,
     },
     keyboardCommands: new Map([
+      [
+        "↑",
+        {
+          key: "↑",
+          name: "next rebase target",
+          handler: (state) => ({
+            ...state,
+            commits: commitsWithMovedFocus(state.commits, (focusIndex) => {
+              const numCommits = state.commits.length;
+              let proposedIndex = focusIndex ?? 0;
+              let i = 0; // Prevents infinite loops
+              do {
+                proposedIndex = (proposedIndex + 1) % numCommits;
+                i++;
+                if (i > numCommits) {
+                  return focusIndex ?? 0;
+                }
+              } while (state.commits[proposedIndex].isBeingMoved);
+              return proposedIndex;
+            }),
+          }),
+        },
+      ],
+      [
+        "↓",
+        {
+          key: "↓",
+          name: "previous rebase target",
+          handler: (state) => ({
+            ...state,
+            commits: commitsWithMovedFocus(state.commits, (focusIndex) => {
+              const numCommits = state.commits.length;
+              let proposedIndex = focusIndex ?? numCommits;
+              let i = 0; // Prevents infinite loops
+              do {
+                proposedIndex = (proposedIndex - 1 + numCommits) % numCommits;
+                i++;
+                if (i > numCommits) {
+                  return focusIndex ?? 0;
+                }
+              } while (state.commits[proposedIndex].isBeingMoved);
+              return proposedIndex;
+            }),
+          }),
+        },
+      ],
       [
         "a",
         {
@@ -319,6 +368,46 @@ function stateForRebaseMode(state: State): State {
           },
         },
       ],
+      [
+        "c",
+        {
+          key: "c",
+          name: "confirm rebase",
+          handler(state, { payload: { dispatch } }) {
+            if (state.modeState.type !== "rebase") {
+              return state;
+            }
+
+            const {
+              commits,
+              backend,
+              repository,
+              modeState: { rebaseRoot },
+            } = state;
+
+            const focusedCommitIndex = indexOfFocusedCommit(commits);
+            // Bail if no focus
+            if (focusedCommitIndex === -1) {
+              return stateForNormalMode(state);
+            }
+            const rebaseTarget = commits[focusedCommitIndex];
+
+            backend
+              .rebaseCommits(
+                repository.path,
+                rebaseRoot.commit,
+                rebaseTarget.commit,
+              )
+              .then(() =>
+                dispatch({
+                  type: "initialize",
+                  payload: { backend, repository },
+                }),
+              );
+            return state;
+          },
+        },
+      ],
     ]),
   };
 }
@@ -326,27 +415,31 @@ function stateForRebaseMode(state: State): State {
 function reducer(state: Readonly<State>, action: Action): State {
   switch (action.type) {
     case "initialize": {
-      return initializedState(action.payload.repository);
+      return initializedState(
+        action.payload.backend,
+        action.payload.repository,
+      );
     }
     case "key": {
       const command = state.keyboardCommands.get(action.payload.key);
       if (!command) {
         return state;
       }
-      return command.handler(state);
+      return command.handler(state, action);
     }
   }
 }
 
 export function useInteractionReducer(
+  backend: NavigatorBackend,
   repository: Repository,
 ): [State, React.Dispatch<Action>] {
   const [state, dispatch] = useReducer(reducer, {}, () =>
-    initializedState(repository),
+    initializedState(backend, repository),
   );
 
   useEffect(() => {
-    dispatch({ type: "initialize", payload: { repository } });
+    dispatch({ type: "initialize", payload: { backend, repository } });
   }, [repository]);
 
   return [state, dispatch];

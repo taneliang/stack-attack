@@ -31,7 +31,7 @@ const App: React.FC<Props> = ({ backend, repoPath }) => {
     return <Text>{isLoading ? "Loading" : "Could not load repo"}</Text>;
   }
 
-  return <RepositoryComponent repository={repository} />;
+  return <RepositoryComponent backend={backend} repository={repository} />;
 };
 
 export default App;

@@ -1,11 +1,13 @@
 import type { Commit, NavigatorBackend } from "./NavigatorBackendType";
 
+import { Signature } from "nodegit";
+
 function makeCommits() {
   const existingStuffCommit: Commit = {
     title: "Existing stuff",
     hash: "1234",
     timestamp: new Date(0),
-    author: "Commit McCommitFace",
+    author: Signature.create("Commit McCommitFace", "wotface@wot.face", 0, 0),
     branchNames: ["master"],
     parentCommits: [],
     childCommits: [],
@@ -15,7 +17,7 @@ function makeCommits() {
     title: "Other peoples trash",
     hash: "1235",
     timestamp: new Date(100),
-    author: "Commit McCommitFace",
+    author: Signature.create("Commit McCommitFace", "wotface@wot.face", 100, 0),
     branchNames: ["origin/master"],
     parentCommits: [existingStuffCommit],
     childCommits: [],
@@ -26,7 +28,7 @@ function makeCommits() {
     title: "1",
     hash: "abc1",
     timestamp: new Date(1),
-    author: "Commit McCommitFace",
+    author: Signature.create("Commit McCommitFace", "wotface@wot.face", 1, 0),
     branchNames: [],
     parentCommits: [existingStuffCommit],
     childCommits: [],
@@ -37,7 +39,7 @@ function makeCommits() {
     title: "2",
     hash: "abc2",
     timestamp: new Date(2),
-    author: "Commit McCommitFace",
+    author: Signature.create("Commit McCommitFace", "wotface@wot.face", 2, 0),
     branchNames: [],
     parentCommits: [commit1],
     childCommits: [],
@@ -69,7 +71,20 @@ export const backend: NavigatorBackend = {
   },
 
   rebaseCommits(repoPath: string, rootCommit: Commit, targetCommit: Commit) {
-    return Promise.reject("NOT IMPLEMENTED");
+    if (rootCommit === targetCommit) {
+      return Promise.reject("Circular reference!");
+    }
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        rootCommit.parentCommits[0].childCommits.splice(
+          rootCommit.parentCommits[0].childCommits.indexOf(rootCommit),
+          1,
+        );
+        rootCommit.parentCommits = [targetCommit];
+        targetCommit.childCommits.push(rootCommit);
+        resolve(targetCommit);
+      }, 200);
+    });
   },
 
   amendAndRebaseDependentTree(repoPath: string) {
