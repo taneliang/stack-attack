@@ -1,6 +1,10 @@
 import { Commit, Repository, NavigatorBackend } from "../NavigatorBackendType";
 import nodegit from "nodegit";
+<<<<<<< HEAD
 import { getOctokit } from "../github-integration/authentication";
+=======
+import { getOctokit } from "../github-intergration/authentication";
+>>>>>>> 961e80e93165367082722b25f18fba9b6f0a715f
 
 export class GitLocal implements NavigatorBackend {
   getRepositoryInformation(
