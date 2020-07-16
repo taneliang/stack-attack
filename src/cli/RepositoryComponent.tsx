@@ -150,7 +150,7 @@ export const RepositoryComponent: React.FC<RepositoryComponentProps> = ({
         <Text color="white">{repository.path}</Text>
       </Box>
       <CommitGraph displayCommits={state.commits} />
-      <CommandList commands={[...state.keyboardCommands.values()]} />
+      <CommandList commands={Array.from(state.keyboardCommands.values())} />
     </Box>
   );
 };
