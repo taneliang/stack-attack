@@ -1,10 +1,10 @@
-import Octokit from "@octokit/rest";
+import { Octokit } from "@octokit/rest";
 import fs from "fs";
 
-let cachedOctokit: Octokit.Octokit | undefined;
+let cachedOctokit: Octokit | undefined;
 let repoPathForCachedOctokit: string | undefined;
 
-function octokitConstructor(repoPath: string): Octokit.Octokit {
+function octokitConstructor(repoPath: string): Octokit {
   let personalAccessToken: string;
   try {
     const configFileContents = fs
@@ -19,13 +19,13 @@ function octokitConstructor(repoPath: string): Octokit.Octokit {
     process.exit(1);
   }
 
-  const octokit = new Octokit.Octokit({
+  const octokit = new Octokit({
     auth: personalAccessToken,
   });
   return octokit;
 }
 
-export function getOctokit(repoPath: string): Octokit.Octokit {
+export function getOctokit(repoPath: string): Octokit {
   if (repoPathForCachedOctokit === repoPath && cachedOctokit) {
     return cachedOctokit;
   }
