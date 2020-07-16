@@ -300,12 +300,14 @@ export class GitLocal implements NavigatorBackend {
       // Can have multiple names so, git reset HARD :check:
       childCommit.branchNames.map(async (branchName: string) => {
         // Target Commit Lookup will change if we use CherryPick
-        const reference = await nodegit.Branch.create(
-          repo,
-          branchName,
-          targetCommitLookup,
-          1,
-        );
+        if (branchName.startsWith("refs/heads/")) {
+          const reference = await nodegit.Branch.create(
+            repo,
+            branchName,
+            targetCommitLookup,
+            1,
+          );
+        }
       });
       commitToRebase = childCommitLookup;
       stackAttackCommit = childCommit;
