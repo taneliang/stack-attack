@@ -68,7 +68,7 @@ const CommitInfo: React.FC<CommitInfoProps> = ({
           )}
         </Box>
         <Text>
-          {title} - <Text color="blueBright">{author}</Text>
+          {title} - <Text color="blueBright">{author.toString()}</Text>
         </Text>
       </Box>
     </Box>
