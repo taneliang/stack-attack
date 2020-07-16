@@ -201,7 +201,7 @@ export class GitLocal implements NavigatorBackend {
       repo,
     });
     let pullRequestBranchMap = new Map<string, PullRequestInfo>();
-    data.map((pullRequest: any) => {
+    data.forEach((pullRequest: any) => {
       if (!pullRequestBranchMap.has(pullRequest.head.ref)) {
         let pullRequestInfo = {
           url: pullRequest.url,
@@ -219,34 +219,41 @@ export class GitLocal implements NavigatorBackend {
     commitHash: string,
     branch: string,
   ): Promise<PullRequestInfo | undefined> {
-    const repoResult = await nodegit.Repository.open(repoPath);
-    // TODO: Handle remotes that are not named "origin"
-    const remoteResult = await repoResult.getRemote("origin");
-    const { owner, repo } = remoteUrlToOwnerAndRepo(remoteResult.url());
-    const octokit = getOctokit(repoPath);
-    const { data } = await octokit.repos.listPullRequestsAssociatedWithCommit({
-      owner,
-      repo,
-      commit_sha: commitHash,
-    });
-    const pullRequestBranchMap = await this.getPullRequestBranchMap(
-      repoPath,
-      owner,
-      repo,
-    );
-    let pullRequestInfo: PullRequestInfo | undefined;
-    if (data.length === 0) {
-      if (pullRequestBranchMap.has(branch)) {
-        pullRequestInfo = pullRequestBranchMap.get(branch);
-        if (pullRequestInfo !== undefined) pullRequestInfo.isOutdated = true;
-      } else return undefined;
-    } else
-      pullRequestInfo = {
+    try{ 
+      const repoResult = await nodegit.Repository.open(repoPath);
+      // TODO: Handle remotes that are not named "origin"
+      const remoteResult = await repoResult.getRemote("origin");
+      const { owner, repo } = remoteUrlToOwnerAndRepo(remoteResult.url());
+      const octokit = getOctokit(repoPath);
+      let pullRequestInfo : PullRequestInfo | undefined;
+       try{
+      const { data } = await octokit.repos.listPullRequestsAssociatedWithCommit({
+        owner,
+        repo,
+        commit_sha: commitHash,
+      });
+      return pullRequestInfo = {
         title: data[0].title,
         url: data[0].url,
         isOutdated: false,
       };
-    return pullRequestInfo;
+    } catch(e){ 
+      const pullRequestBranchMap = await this.getPullRequestBranchMap(
+        repoPath,
+        owner,
+        repo,
+      );
+      if (pullRequestBranchMap.has(branch)) {
+        pullRequestInfo = pullRequestBranchMap.get(branch);
+        if (pullRequestInfo !== undefined) {
+          pullRequestInfo.isOutdated = true;
+          return pullRequestInfo;
+        }
+      } else return undefined;
+    }
+    } catch(e) { 
+      console.log(e);
+    }
   }
 
   //Actions
