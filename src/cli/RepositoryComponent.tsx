@@ -60,7 +60,7 @@ const CommitInfo: React.FC<CommitInfoProps> = ({
         <Text
           color="blueBright"
           backgroundColor={isFocused ? "yellow" : "none"}>
-          {hash}
+          {hash.substr(0, 6)}
         </Text>{" "}
         -{" "}
       </Text>

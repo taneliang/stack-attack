@@ -1,4 +1,9 @@
-import { Commit, Repository, PullRequestInfo, NavigatorBackend } from "../NavigatorBackendType";
+import {
+  Commit,
+  Repository,
+  PullRequestInfo,
+  NavigatorBackend,
+} from "../NavigatorBackendType";
 import nodegit from "nodegit";
 import { getOctokit } from "../github-integration/authentication";
 
@@ -18,80 +23,70 @@ export class GitLocal implements NavigatorBackend {
     const branchNames: string[] = refs.map((ref: nodegit.Reference) =>
       ref.name(),
     );
-    let interestingCommit = branchCommits[0];
-    let baseMostCommit = nodegit.Oid.fromString(interestingCommit.sha());
-    if (branchCommits.length > 1) {
-      baseMostCommit = await branchCommits.reduce(
-        async (interestingCommit: Promise<nodegit.Oid>, branchCommit) => {
-          const interestingCommitOid = await interestingCommit;
-          const branchCommitOid = nodegit.Oid.fromString(branchCommit.sha());
-          return nodegit.Merge.base(
-            repo,
-            interestingCommitOid,
-            branchCommitOid,
-          );
-        },
-        Promise.resolve(nodegit.Oid.fromString(interestingCommit.sha())),
-      );
-    }
-    const baseCommitLookup = await nodegit.Commit.lookup(repo, baseMostCommit);
+
+    // Compute the most recent common ancestor of all branches.
+    const commonAncestorCommitOid = await branchCommits.reduce(
+      async (
+        interestingCommit: Promise<nodegit.Oid> | nodegit.Oid,
+        branchCommit,
+      ) => {
+        const interestingCommitOid = await interestingCommit;
+        const branchCommitOid = nodegit.Oid.fromString(branchCommit.sha());
+        return nodegit.Merge.base(repo, interestingCommitOid, branchCommitOid);
+      },
+      nodegit.Oid.fromString(branchCommits[0].sha()),
+    );
+
+    // Find all commits and build children maps
+    /**
+     * Maps commit hashes to their childrens' commit hashes.
+     *
+     * This needs to exist as we can only retrieve a commit's parents, but we
+     * actually want to build relationships with its children.
+     *
+     * Commit hash keys *are not* guaranteed to exist in `commitHashDict`.
+     * Commit hashes in the sets *are* guaranteed to exist in
+     * `commitHashDict` as we traverse from children to parents.
+     */
+    const commitChildrenMap = new Map<string, Set<string>>();
     const commitHashDict = new Map<string, Commit>();
     await Promise.all(
-      refs.map((ref: nodegit.Reference) => {
+      refs.map((ref) => {
         return new Promise(async (resolve, _) => {
           const history = (await repo.getBranchCommit(ref)).history();
-          const branchName = ref.name();
-          /**
-           * Maps commit hashes to their childrens' commit hashes.
-           *
-           * Commit hash keys *are not* guaranteed to exist in `commitHashDict`.
-           * Commit hashes in the sets *are* guaranteed to exist in
-           * `commitHashDict` as we traverse from children to parents.
-           */
-          const commitChildrenMap = new Map<string, Set<string>>();
           let stopped = false;
 
-          history.on("commit", async (nodegitCommit: nodegit.Commit) => {
+          history.on("commit", (nodegitCommit: nodegit.Commit) => {
             if (stopped) {
               return;
             }
-
             const sha = nodegitCommit.sha();
 
-            // Create a commit before we do the check below as we need to await it
-            // and we don't want the result of the check to be invalid if another
-            // execution/event loop(?) sets it.
-            const newCommit = await this.shaToCommit(sha, repo, branchName);
-
-            // If the commit is already in `commitHashDict`, update the branch name and
-            // stop because we have already processed it.
+            // If the commit is already in `commitHashDict`, stop because we
+            // have already processed it.
             if (commitHashDict.has(sha)) {
-              commitHashDict.get(sha)?.branchNames.push(branchName);
               stopped = true;
               return;
             }
 
-            // If not, the commit has not been seen before.
-
-            // 1. Create the commit and add it to `commitHashDict`.
+            // Create a new commit and add it to `commitHashDict`.
+            const newCommit: Commit = {
+              title: nodegitCommit.summary(),
+              hash: sha,
+              timestamp: nodegitCommit.date(),
+              author: nodegitCommit.author(),
+              branchNames: [],
+              pullRequestInfo: this.getPullRequestInfo(
+                nodegitCommit.author().toString(),
+                repo,
+                nodegitCommit.sha(),
+              ),
+              parentCommits: [],
+              childCommits: [],
+            };
             commitHashDict.set(sha, newCommit);
 
-            // 2. Build the relationships with the commit's children, which we
-            // should have seen before.
-            if (commitChildrenMap.has(sha)) {
-              const childrenHashes = commitChildrenMap.get(sha)!;
-              childrenHashes.forEach((childHash) => {
-                const childCommit = commitHashDict.get(childHash)!;
-                childCommit.parentCommits = Array.from(
-                  new Set([...childCommit.parentCommits, newCommit]),
-                );
-                newCommit.childCommits = Array.from(
-                  new Set([...newCommit.childCommits, childCommit]),
-                );
-              });
-            }
-
-            // 3. Update the commit's children.
+            // Update the commit's children.
             const parentHashes = nodegitCommit
               .parents()
               .map((parent) => parent.tostrS());
@@ -101,6 +96,11 @@ export class GitLocal implements NavigatorBackend {
               }
               commitChildrenMap.get(parentHash)!.add(sha);
             });
+
+            // Stop if this is the common ancestor commit
+            if (nodegitCommit.id().equal(commonAncestorCommitOid)) {
+              stopped = true;
+            }
           });
 
           history.on("end", () => resolve());
@@ -108,23 +108,37 @@ export class GitLocal implements NavigatorBackend {
         });
       }),
     );
-    const hasUncommittedChanges = repoStatus.length > 0;
-    const rootDisplayCommit: Commit = {
-      title: baseCommitLookup.summary(),
-      hash: baseCommitLookup.sha(),
-      timestamp: baseCommitLookup.date(),
-      author: baseCommitLookup.author(),
-      branchNames,
-      pullRequestInfo: this.getPullRequestInfo(
-        baseCommitLookup.author().name(),
-        repo,
-        baseCommitLookup.sha(),
-      ),
-      parentCommits: commitHashDict.get(baseCommitLookup.sha())?.parentCommits!,
-      childCommits: commitHashDict.get(baseCommitLookup.sha())?.childCommits!,
-    };
 
-    return Promise.resolve({
+    // Build relationships
+    commitChildrenMap.forEach((childrenHashes, parentHash) => {
+      const parentCommit = commitHashDict.get(parentHash);
+      if (!parentCommit) {
+        return;
+      }
+      childrenHashes.forEach((childHash) => {
+        const childCommit = commitHashDict.get(childHash)!;
+        childCommit.parentCommits = Array.from(
+          new Set([...childCommit.parentCommits, parentCommit]),
+        );
+        parentCommit.childCommits = Array.from(
+          new Set([...parentCommit.childCommits, childCommit]),
+        );
+      });
+    });
+
+    // Inject branch names
+    refs.forEach((ref) => {
+      const branchName = ref.name();
+      const branchSha = ref.target().tostrS();
+      commitHashDict.get(branchSha)?.branchNames.push(branchName);
+    });
+
+    const hasUncommittedChanges = repoStatus.length > 0;
+    const rootDisplayCommit = commitHashDict.get(
+      commonAncestorCommitOid.tostrS(),
+    )!;
+
+    return {
       repo: {
         path: repoPath,
         hasUncommittedChanges,
@@ -137,61 +151,10 @@ export class GitLocal implements NavigatorBackend {
         headHash,
         rootDisplayCommit,
       }),
-    });
-
-    // const rootDisplayCommit = {
-    //   title: baseCommitLookup.summary(),
-    //   hash: baseCommitLookup.sha(),
-    //   timestamp: baseCommitLookup.timeMs(),
-    //   author: baseCommitLookup.author().toString(),
-    //   branchNames: branchNames,
-    // };
-
-    // const history = (await repo.getHeadCommit()).history();
-    // const childCommits: nodegit.Commit[] = [];
-    // let child: Boolean = true;
-    // history.on('commit', (commit: nodegit.Commit) => {
-    //   commitHashDict.set(commit.sha(), commit);
-    //   if (commit.sha() === baseCommitLookup.sha()) {
-    //     child = false;
-    //     return;
-    //   }
-    //   if (child) {
-    //     childCommits.push(commit);
-    //   } else {
-    //     return;
-    //   }
-    // });
-    // history.on('end', async (_: nodegit.Commit[]) => {
-    //   // Checking if any file in the repository has changed
-    // });
-
-    // history.start();
-  }
-
-  async shaToCommit(
-    sha: string,
-    repo: nodegit.Repository,
-    branchName: string,
-  ): Promise<Commit> {
-    const commit = await nodegit.Commit.lookup(repo, sha);
-    return {
-      title: commit.summary(),
-      hash: commit.sha(),
-      timestamp: commit.date(),
-      author: commit.author(),
-      branchNames: [branchName],
-      pullRequestInfo: this.getPullRequestInfo(
-        commit.author().toString(),
-        repo,
-        commit.sha(),
-      ),
-      parentCommits: [],
-      childCommits: [],
     };
   }
 
-  getPullRequestInfo = (
+  getPullRequestInfo(
     _: string,
     __: nodegit.Repository,
     ___: string,
@@ -201,7 +164,8 @@ export class GitLocal implements NavigatorBackend {
       shortName: "google",
       isOutdated: true,
     };
-  };
+  }
+
   //Actions
   async createOrUpdateBranchesForCommitStack(
     repoPath: string,
