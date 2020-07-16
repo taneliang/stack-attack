@@ -1,6 +1,4 @@
 import Octokit from "@octokit/rest";
-// Const { createAppAuth } = require("@octokit/auth-app");
-// const jwt = require("jsonwebtoken");
 import fs from "fs";
 
 let cachedOctokit: Octokit.Octokit | undefined;

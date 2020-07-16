@@ -6,7 +6,6 @@ import {
 } from "../NavigatorBackendType";
 import nodegit from "nodegit";
 import { getOctokit } from "../github-integration/authentication";
-import { any } from "prop-types";
 
 export class GitLocal implements NavigatorBackend {
   async getRepositoryInformation(
