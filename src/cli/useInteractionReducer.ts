@@ -105,6 +105,7 @@ function backendCommitGraphToDisplayCommits(
       // TODO: handle merge commit
       commitDepth = 1;
     }
+
     commitDepths.set(commit.hash, commitDepth);
 
     displayCommits.push({
@@ -147,6 +148,7 @@ function commitsWithAddedFocus(
   if (focusIndex < 0) {
     return [...commits];
   }
+
   const newCommits = commits.slice();
   const commit: DisplayCommit = {
     ...newCommits[focusIndex],
@@ -163,6 +165,7 @@ function commitsWithRemovedFocus(
   if (focusIndex < 0) {
     return [...commits];
   }
+
   const newCommits = commits.slice();
   const commit: DisplayCommit = {
     ...newCommits[focusIndex],
@@ -211,12 +214,13 @@ function stateForNormalMode(state: State): State {
           key: "↓",
           name: "previous commit",
           handler(state) {
-            const numCommits = state.commits.length;
+            const numberCommits = state.commits.length;
             return {
               ...state,
               commits: commitsWithMovedFocus(
                 state.commits,
-                (focusIndex) => (focusIndex ?? numCommits) - 1 + numCommits,
+                (focusIndex) =>
+                  (focusIndex ?? numberCommits) - 1 + numberCommits,
               ),
             };
           },
@@ -245,6 +249,7 @@ function stateForNormalMode(state: State): State {
             if (focusedCommitIndex === -1) {
               return state;
             }
+
             const stackBase = commits[focusedCommitIndex].commit;
 
             backend
@@ -272,6 +277,7 @@ function stateForNormalMode(state: State): State {
             if (focusedCommitIndex === -1) {
               return state;
             }
+
             const stackBase = commits[focusedCommitIndex].commit;
 
             // Traverse tree to build commit stack
@@ -307,6 +313,7 @@ function stateForRebaseMode(state: State): State {
   if (focusedCommitIndex === -1) {
     return stateForNormalMode(state);
   }
+
   const rebaseRoot = commits[focusedCommitIndex];
 
   // Bail if commit has no parent or multiple parents
@@ -314,6 +321,7 @@ function stateForRebaseMode(state: State): State {
   if (rebaseRoot.commit.parentCommits.length !== 1) {
     return stateForNormalMode(state);
   }
+
   const originalRebaseRootParent = rebaseRoot.commit.parentCommits[0];
 
   // Mark commits as being moved.
@@ -334,10 +342,12 @@ function stateForRebaseMode(state: State): State {
     if (parentCommits.length !== 1) {
       return displayCommit;
     }
+
     const parentHash = parentCommits[0].hash;
     if (!movingHashes.has(parentHash)) {
       return displayCommit;
     }
+
     movingHashes.add(hash);
     return {
       ...displayCommit,
@@ -370,16 +380,17 @@ function stateForRebaseMode(state: State): State {
           handler: (state) => ({
             ...state,
             commits: commitsWithMovedFocus(state.commits, (focusIndex) => {
-              const numCommits = state.commits.length;
+              const numberCommits = state.commits.length;
               let proposedIndex = focusIndex ?? 0;
               let i = 0; // Prevents infinite loops
               do {
-                proposedIndex = (proposedIndex + 1) % numCommits;
+                proposedIndex = (proposedIndex + 1) % numberCommits;
                 i++;
-                if (i > numCommits) {
+                if (i > numberCommits) {
                   return focusIndex ?? 0;
                 }
               } while (state.commits[proposedIndex].isBeingMoved);
+
               return proposedIndex;
             }),
           }),
@@ -393,16 +404,18 @@ function stateForRebaseMode(state: State): State {
           handler: (state) => ({
             ...state,
             commits: commitsWithMovedFocus(state.commits, (focusIndex) => {
-              const numCommits = state.commits.length;
-              let proposedIndex = focusIndex ?? numCommits;
+              const numberCommits = state.commits.length;
+              let proposedIndex = focusIndex ?? numberCommits;
               let i = 0; // Prevents infinite loops
               do {
-                proposedIndex = (proposedIndex - 1 + numCommits) % numCommits;
+                proposedIndex =
+                  (proposedIndex - 1 + numberCommits) % numberCommits;
                 i++;
-                if (i > numCommits) {
+                if (i > numberCommits) {
                   return focusIndex ?? 0;
                 }
               } while (state.commits[proposedIndex].isBeingMoved);
+
               return proposedIndex;
             }),
           }),
@@ -424,6 +437,7 @@ function stateForRebaseMode(state: State): State {
                     isBeingMoved: false,
                   };
                 }
+
                 return displayCommit;
               }),
             };
@@ -453,6 +467,7 @@ function stateForRebaseMode(state: State): State {
             if (focusedCommitIndex === -1) {
               return stateForNormalMode(state);
             }
+
             const rebaseTarget = commits[focusedCommitIndex];
 
             backend
@@ -483,11 +498,13 @@ function reducer(state: Readonly<State>, action: Action): State {
         action.payload.repository,
       );
     }
+
     case "key": {
       const command = state.keyboardCommands.get(action.payload.key);
       if (!command) {
         return state;
       }
+
       return command.handler(state, action);
     }
   }

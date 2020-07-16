@@ -142,7 +142,7 @@ export const RepositoryComponent: React.FC<RepositoryComponentProps> = ({
   return (
     <Box flexDirection="column">
       <Box marginY={1} marginLeft={1}>
-        <Text backgroundColor="yellow" color="#000" bold>
+        <Text bold backgroundColor="yellow" color="#000">
           {" "}
           STACK ATTACK{" "}
         </Text>
@@ -150,7 +150,7 @@ export const RepositoryComponent: React.FC<RepositoryComponentProps> = ({
         <Text color="white">{repository.path}</Text>
       </Box>
       <CommitGraph displayCommits={state.commits} />
-      <CommandList commands={Array.from(state.keyboardCommands.values())} />
+      <CommandList commands={[...state.keyboardCommands.values()]} />
     </Box>
   );
 };

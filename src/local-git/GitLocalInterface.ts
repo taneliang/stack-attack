@@ -6,6 +6,7 @@ import {
 } from "../NavigatorBackendType";
 import nodegit from "nodegit";
 import { getOctokit } from "../github-integration/authentication";
+import { any } from "prop-types";
 
 export class GitLocal implements NavigatorBackend {
   async getRepositoryInformation(
@@ -154,16 +155,65 @@ export class GitLocal implements NavigatorBackend {
     };
   }
 
-  getPullRequestInfo(
-    _: string,
-    __: nodegit.Repository,
-    ___: string,
-  ): PullRequestInfo {
-    return {
-      url: "http://www.google.com",
-      shortName: "google",
-      isOutdated: true,
-    };
+  async getPullRequestBranchMap(
+    repoPath: string,
+    owner: string,
+    repo: string,
+  ): Promise<Map<string, PullRequestInfo>> {
+    const octokit = getOctokit(repoPath);
+    const data = await octokit.pulls.list({
+      owner,
+      repo,
+    });
+    let pullRequestBranchMap = new Map<string, PullRequestInfo>();
+    data.map((pullRequest: any) => {
+      if (!pullRequestBranchMap.has(pullRequest.head.ref)) {
+        let pullRequestInfo = {
+          url: pullRequest.url,
+          title: pullRequest.title,
+          isOutdated: false,
+        };
+        pullRequestBranchMap.set(pullRequest.head.ref, pullRequestInfo);
+      }
+    });
+    return pullRequestBranchMap;
+  }
+
+  async getPullRequestInfo(
+    repoPath: string,
+    commit_sha: string,
+    branch: string,
+  ): Promise<PullRequestInfo | undefined> {
+    const repoResult = await nodegit.Repository.open(repoPath);
+    const remoteResult = await repoResult.getRemote("origin");
+    const remoteURL = await remoteResult.url();
+    //sample URL: "https://github.com/taneliang/stack-attack"
+    const repo = remoteURL.split("/").pop() ?? "invalid repo";
+    const owner = remoteURL.split("/")[3];
+    const octokit = getOctokit(repoPath);
+    const data = await octokit.repos.listPullRequestsAssociatedWithCommit({
+      owner,
+      repo,
+      commit_sha,
+    });
+    const pullRequestBranchMap = await this.getPullRequestBranchMap(
+      repoPath,
+      owner,
+      repo,
+    );
+    let pullRequestInfo: PullRequestInfo | undefined;
+    if (data.length === 0) {
+      if (pullRequestBranchMap.has(branch)) {
+        pullRequestInfo = pullRequestBranchMap.get(branch);
+        if (pullRequestInfo !== undefined) pullRequestInfo.isOutdated = true;
+      } else return undefined;
+    } else
+      pullRequestInfo = {
+        title: data[0].title,
+        url: data[0].url,
+        isOutdated: false,
+      };
+    return pullRequestInfo;
   }
 
   //Actions
