@@ -1,6 +1,6 @@
 import { Commit, Repository, NavigatorBackend } from "../NavigatorBackendType";
-import nodegit, { TreeEntry } from "nodegit";
-import { getOctokit } from "../github-intergration/authentication";
+import nodegit from "nodegit";
+import { getOctokit } from "../github-integration/authentication";
 
 export class GitLocal implements NavigatorBackend {
   getRepositoryInformation(
@@ -32,7 +32,7 @@ export class GitLocal implements NavigatorBackend {
   pushCommitstoRepo(branchName: string, repoPath: string) {
     let repo: nodegit.Repository, remote: nodegit.Remote;
     //Local repo
-    nodegit.Repository.open(repoPath)
+    return nodegit.Repository.open(repoPath)
       .then(function (repoResult) {
         repo = repoResult;
         //get the origin repo
