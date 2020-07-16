@@ -232,6 +232,69 @@ function stateForNormalMode(state: State): State {
           },
         },
       ],
+      [
+        "c",
+        {
+          key: "c",
+          name: "PR single commit",
+          handler(state, { payload: { dispatch } }) {
+            const { commits, backend, repository } = state;
+
+            const focusedCommitIndex = indexOfFocusedCommit(commits);
+            // Bail if no focus
+            if (focusedCommitIndex === -1) {
+              return state;
+            }
+            const stackBase = commits[focusedCommitIndex].commit;
+
+            backend
+              .createOrUpdatePRsForCommits(repository.path, [stackBase])
+              .then(() =>
+                dispatch({
+                  type: "initialize",
+                  payload: { backend, repository },
+                }),
+              );
+            return state;
+          },
+        },
+      ],
+      [
+        "s",
+        {
+          key: "s",
+          name: "PR stack",
+          handler(state, { payload: { dispatch } }) {
+            const { commits, backend, repository } = state;
+
+            const focusedCommitIndex = indexOfFocusedCommit(commits);
+            // Bail if no focus
+            if (focusedCommitIndex === -1) {
+              return state;
+            }
+            const stackBase = commits[focusedCommitIndex].commit;
+
+            // Traverse tree to build commit stack
+            const stack = [];
+            const nextCommits = [stackBase];
+            while (nextCommits.length) {
+              const nextCommit = nextCommits.pop()!;
+              stack.push(nextCommit);
+              nextCommits.push(...nextCommit.childCommits);
+            }
+
+            backend
+              .createOrUpdatePRsForCommits(repository.path, stack)
+              .then(() =>
+                dispatch({
+                  type: "initialize",
+                  payload: { backend, repository },
+                }),
+              );
+            return state;
+          },
+        },
+      ],
     ]),
   };
 }

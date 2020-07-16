@@ -106,8 +106,10 @@ const CommandList: React.FC<CommandListProps> = ({ commands }) => (
   <Box marginTop={1}>
     {commands.map(({ key, name }) => (
       <Box key={key} marginRight={2}>
-        <Text color="white">({key})</Text>
-        <Text color="gray"> {name}</Text>
+        <Box marginRight={1} flexShrink={0}>
+          <Text color="white">({key})</Text>
+        </Box>
+        <Text color="gray">{name}</Text>
       </Box>
     ))}
   </Box>
