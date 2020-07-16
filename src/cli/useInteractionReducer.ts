@@ -27,8 +27,6 @@ type NormalModeState = {
 type RebaseModeState = {
   type: "rebase";
   rebaseRoot: DisplayCommit;
-  originalRebaseRootParent: Commit;
-  selectedRebaseTarget: Commit;
 };
 
 type State = {
@@ -299,8 +297,6 @@ function stateForRebaseMode(state: State): State {
     modeState: {
       type: "rebase",
       rebaseRoot,
-      originalRebaseRootParent,
-      selectedRebaseTarget: originalRebaseRootParent,
     },
     keyboardCommands: new Map([
       [
@@ -369,6 +365,46 @@ function stateForRebaseMode(state: State): State {
               }),
             };
             return stateForNormalMode(newState);
+          },
+        },
+      ],
+      [
+        "c",
+        {
+          key: "c",
+          name: "confirm rebase",
+          handler(state, { payload: { dispatch } }) {
+            if (state.modeState.type !== "rebase") {
+              return state;
+            }
+
+            const {
+              commits,
+              backend,
+              repository,
+              modeState: { rebaseRoot },
+            } = state;
+
+            const focusedCommitIndex = indexOfFocusedCommit(commits);
+            // Bail if no focus
+            if (focusedCommitIndex === -1) {
+              return stateForNormalMode(state);
+            }
+            const rebaseTarget = commits[focusedCommitIndex];
+
+            backend
+              .rebaseCommits(
+                repository.path,
+                rebaseRoot.commit,
+                rebaseTarget.commit,
+              )
+              .then(() =>
+                dispatch({
+                  type: "initialize",
+                  payload: { backend, repository },
+                }),
+              );
+            return state;
           },
         },
       ],

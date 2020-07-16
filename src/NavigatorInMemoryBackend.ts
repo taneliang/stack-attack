@@ -69,7 +69,20 @@ export const backend: NavigatorBackend = {
   },
 
   rebaseCommits(repoPath: string, rootCommit: Commit, targetCommit: Commit) {
-    return Promise.reject("NOT IMPLEMENTED");
+    if (rootCommit === targetCommit) {
+      return Promise.reject("Circular reference!");
+    }
+    return new Promise((resolve) => {
+      setTimeout(() => {
+        rootCommit.parentCommits[0].childCommits.splice(
+          rootCommit.parentCommits[0].childCommits.indexOf(rootCommit),
+          1,
+        );
+        rootCommit.parentCommits = [targetCommit];
+        targetCommit.childCommits.push(rootCommit);
+        resolve(targetCommit);
+      }, 200);
+    });
   },
 
   amendAndRebaseDependentTree(repoPath: string) {
