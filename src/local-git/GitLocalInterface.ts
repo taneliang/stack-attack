@@ -1,5 +1,10 @@
 import { Commit, Repository, NavigatorBackend } from "../NavigatorBackendType";
 import nodegit from "nodegit";
+<<<<<<< HEAD
+import { getOctokit } from "../github-integration/authentication";
+=======
+import { getOctokit } from "../github-intergration/authentication";
+>>>>>>> 961e80e93165367082722b25f18fba9b6f0a715f
 
 export class GitLocal implements NavigatorBackend {
   getRepositoryInformation(
@@ -28,10 +33,10 @@ export class GitLocal implements NavigatorBackend {
   }
 
   //Actions: push to the origin repo
-  async pushCommitstoRepo(branchName: string, repoPath: string) {
+  pushCommitstoRepo(branchName: string, repoPath: string) {
     let repo: nodegit.Repository, remote: nodegit.Remote;
     //Local repo
-    await nodegit.Repository.open(repoPath)
+    return nodegit.Repository.open(repoPath)
       .then(function (repoResult) {
         repo = repoResult;
         //get the origin repo
@@ -39,7 +44,7 @@ export class GitLocal implements NavigatorBackend {
       })
       .then(function (remoteResult) {
         console.log("Remote loaded");
-        const remote = remoteResult;
+        remote = remoteResult;
 
         //Configure and connect the remote repo
         return remote.connect(nodegit.Enums.DIRECTION.PUSH, {
@@ -71,10 +76,52 @@ export class GitLocal implements NavigatorBackend {
   amendAndRebaseDependentTree(repoPath: string): Promise<Commit> {
     return Promise.reject("NOT IMPLEMENTED");
   }
-  createOrUpdatePRsForCommits(
+  //octokit.pulls.create({owner, repo, title, head, base, body, maintainer_can_modify, draft});
+  async createOrUpdatePRsForCommits(
     repoPath: string,
     commitStack: Commit[],
   ): Promise<Commit[]> {
-    return Promise.reject("NOT IMPLEMENTED");
+    //create branch for each commit
+    commitStack = await this.createOrUpdateBranchesForCommitStack(
+      repoPath,
+      commitStack,
+    );
+
+    //get information for octokit.pulls.create()
+    const repoResult = await nodegit.Repository.open(repoPath);
+    const remoteResult = await repoResult.getRemote("origin");
+    const remoteURL = await remoteResult.url();
+    //sample URL: "https://github.com/taneliang/stack-attack"
+    const repoName = remoteURL.split("/").pop() ?? "invalid repo";
+    const owner = remoteURL.split("/")[3];
+    const octokit = getOctokit(repoPath);
+    //for each commit/branch in the stack
+    for (let i = 0; i < commitStack.length; i++) {
+      const lastIndex = commitStack[i].branchNames.length - 1;
+      const branchName = commitStack[i].branchNames[lastIndex];
+
+      //push the commits to that branch on the remote repository
+      await this.pushCommitstoRepo(branchName, repoPath);
+
+      //find the base branch
+      let baseName: string;
+      if (i === 0) baseName = "master";
+      else {
+        const lastIndexofLastCommit = commitStack[i - 1].branchNames.length - 1;
+        baseName = commitStack[i - 1].branchNames[lastIndexofLastCommit];
+      }
+      //create PR for that branch
+      await octokit.pulls.create({
+        owner: owner,
+        repo: repoName,
+        title: commitStack[i].title,
+        head: branchName,
+        base: baseName, //TODO: ask the user the base
+        body: commitStack[i].title, //TODO: description for PR
+        maintainer_can_modify: true,
+        draft: true, //draft PR default
+      });
+    }
+    return commitStack;
   }
 }
