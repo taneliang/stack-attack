@@ -166,18 +166,29 @@ export class GitLocal implements NavigatorBackend {
     };
   }
 
-  //Actions
+  //Actions: create new branch for each commit that don't have an existing "feature/new-branch" branch
   async createOrUpdateBranchesForCommitStack(
     repoPath: string,
-    baseBranchName: string,
     commitStack: Commit[],
   ): Promise<Commit[]> {
     const repo = await nodegit.Repository.open(repoPath);
     //assume we're operating on the entire stack
     for (let i = 0; i < commitStack.length; i++) {
-      ["origin/master", "feature/new-branch-1"];
-      if (commitStack[i].branchNames.length > 0) continue;
-      const newBranchName = `${baseBranchName}-${i}`; //branch name is "baseBranchName-number"
+      //Example: ["origin/master", "feature/new-branch-1"];
+      //if the commit has a branch "feature/new-branch-", don't create a new branch
+      if (commitStack[i].branchNames.length > 0) {
+        let skip = false;
+        for (let j = 0; j < commitStack[i].branchNames.length; j++) {
+          if (commitStack[i].branchNames[j].startsWith("feature/new-branch")) {
+            skip = true;
+            break;
+          }
+        }
+        if (skip) continue;
+      }
+      //else: create a new branch
+      // TODO: Get from user
+      const newBranchName = `feature/new-branch-${i}`; //branch name is "feature/new-branch-number"
       commitStack[i].branchNames.push(newBranchName);
       const commitTarget = await nodegit.Commit.lookup(
         repo,
@@ -232,15 +243,14 @@ export class GitLocal implements NavigatorBackend {
   amendAndRebaseDependentTree(repoPath: string): Promise<Commit> {
     return Promise.reject("NOT IMPLEMENTED");
   }
-  //octokit.pulls.create({owner, repo, title, head, base, body, maintainer_can_modify, draft});
+  //Actions: create or update PRs for commits
   async createOrUpdatePRsForCommits(
     repoPath: string,
     commitStack: Commit[],
   ): Promise<Commit[]> {
-    //CREATE BRANCH for each commit
+    //CREATE OR UPDATE BRANCH for each commit
     commitStack = await this.createOrUpdateBranchesForCommitStack(
       repoPath,
-      "feature/new-branch", // TODO: Get from user
       commitStack,
     );
 
@@ -267,24 +277,36 @@ export class GitLocal implements NavigatorBackend {
        * update description for every branch
        */
 
-      //find the base branch
-      let baseName: string;
-      if (i === 0) baseName = "master";
-      else {
-        const lastIndexofLastCommit = commitStack[i - 1].branchNames.length - 1;
-        baseName = commitStack[i - 1].branchNames[lastIndexofLastCommit];
-      }
-      //create PR for that branch
-      await octokit.pulls.create({
+      //If the branch has an existing PR, don't create one
+      const getPR = await octokit.pulls.list({
         owner: owner,
         repo: repoName,
-        title: commitStack[i].title,
-        head: branchName,
-        base: baseName, //TODO: ask the user the base
-        body: commitStack[i].title, //TODO: description for PR
-        maintainer_can_modify: true,
-        draft: true, //draft PR default
+        head: `${owner}:${branchName}`,
       });
+      if (getPR.data.length !== 0) {
+      }
+      //Else if the branch doesn't have an existing PR, create one
+      else {
+        //find the base branch
+        let baseName: string;
+        if (i === 0) baseName = "master";
+        else {
+          const lastIndexofLastCommit =
+            commitStack[i - 1].branchNames.length - 1;
+          baseName = commitStack[i - 1].branchNames[lastIndexofLastCommit];
+        }
+        //create PR for that branch
+        await octokit.pulls.create({
+          owner: owner,
+          repo: repoName,
+          title: commitStack[i].title,
+          head: branchName,
+          base: baseName, //TODO: ask the user the base
+          body: commitStack[i].title, //TODO: description for PR
+          maintainer_can_modify: true,
+          draft: true, //draft PR default
+        });
+      }
     }
 
     // Get list of PRs
