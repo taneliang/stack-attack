@@ -169,12 +169,15 @@ export class GitLocal implements NavigatorBackend {
   //Actions
   async createOrUpdateBranchesForCommitStack(
     repoPath: string,
+    baseBranchName: string,
     commitStack: Commit[],
   ): Promise<Commit[]> {
     const repo = await nodegit.Repository.open(repoPath);
+    //assume we're operating on the entire stack
     for (let i = 0; i < commitStack.length; i++) {
-      const commitMessage = "feature/new-branch"; //TODO: get the branch name from user
-      const newBranchName = `${commitMessage}-${i}`; //branch name is "commit message-branch number"
+      ["origin/master", "feature/new-branch-1"];
+      if (commitStack[i].branchNames.length > 0) continue;
+      const newBranchName = `${baseBranchName}-${i}`; //branch name is "baseBranchName-number"
       commitStack[i].branchNames.push(newBranchName);
       const commitTarget = await nodegit.Commit.lookup(
         repo,
@@ -234,9 +237,10 @@ export class GitLocal implements NavigatorBackend {
     repoPath: string,
     commitStack: Commit[],
   ): Promise<Commit[]> {
-    //create branch for each commit
+    //CREATE BRANCH for each commit
     commitStack = await this.createOrUpdateBranchesForCommitStack(
       repoPath,
+      "feature/new-branch", // TODO: Get from user
       commitStack,
     );
 
@@ -248,13 +252,20 @@ export class GitLocal implements NavigatorBackend {
     const repoName = remoteURL.split("/").pop() ?? "invalid repo";
     const owner = remoteURL.split("/")[3];
     const octokit = getOctokit(repoPath);
+
     //for each commit/branch in the stack
     for (let i = 0; i < commitStack.length; i++) {
       const lastIndex = commitStack[i].branchNames.length - 1;
       const branchName = commitStack[i].branchNames[lastIndex];
 
-      //push the commits to that branch on the remote repository
+      //PUSH the commits to that branch on the remote repository
       await this.pushCommitstoRepo(branchName, repoPath);
+
+      //CREATE OR UPDATE PR for each branch
+      /* find which branch has an existing PR
+       * create PR for other branches
+       * update description for every branch
+       */
 
       //find the base branch
       let baseName: string;
@@ -275,6 +286,65 @@ export class GitLocal implements NavigatorBackend {
         draft: true, //draft PR default
       });
     }
+
+    // Get list of PRs
+    const pullRequests = await Promise.all(
+      commitStack
+        .filter(
+          ({ branchNames }) =>
+            !!branchNames.find((name) => name.startsWith("refs/heads/")),
+        )
+        .map(async ({ branchNames }) => {
+          const lastIndex = branchNames.length - 1;
+          const branchName = branchNames[lastIndex];
+          const prList = await octokit.pulls.list({
+            owner: owner,
+            repo: repoName,
+            head: `${owner}:${branchName}`,
+          });
+          // Assume that all commits in commitStack already have a PR, since we've
+          // just created it above.
+          return prList.data[0]!;
+        }),
+    );
+
+    // let prNumberArr = [];
+    // for (let i = 0; i < commitStack.length; i++) {
+    //   const lastIndex = commitStack[i].branchNames.length - 1;
+    //   const branchName = commitStack[i].branchNames[lastIndex];
+    //   const prList = await octokit.pulls.list({
+    //     owner: owner,
+    //     repo: repoName,
+    //     head: `${owner}:${branchName}`,
+    //   });
+    //   const prSingle = prList.data.pop();
+    //   const prNumber = prSingle?.number;
+    //   const prTitle = prSingle?.title;
+    //   prNumberArr.push(prNumber);
+    // }
+
+    // Update PR descriptions
+    await Promise.all(
+      pullRequests.map((pullRequest, prIndex) => {
+        let description =
+          "Stack PR by [STACK ATTACK](https://github.com/taneliang/stack-attack):\n";
+        // Assume pullRequests and commitStack have the same length
+        description += pullRequests
+          .map(({ number, title }, indexOfDescriptionPr) => {
+            const starsOrNone = prIndex === indexOfDescriptionPr ? "**" : "";
+            return `- ${starsOrNone}#${number} ${title}${starsOrNone}`;
+          })
+          .join("\n");
+
+        return octokit.pulls.update({
+          owner: owner,
+          repo: repoName,
+          pull_number: pullRequest.number,
+          body: description,
+        });
+      }),
+    );
+
     return commitStack;
   }
 }
