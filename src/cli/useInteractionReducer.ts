@@ -15,7 +15,7 @@ export type DisplayCommit = {
   isBeingMoved: boolean;
 };
 
-type Command = {
+export type Command = {
   key: string;
   name: string;
   handler: (state: State, action: KeyAction) => State;

@@ -2,7 +2,11 @@ import type { Repository, NavigatorBackend } from "../NavigatorBackendType";
 
 import React from "react";
 import { Text, Box, useInput, useApp } from "ink";
-import { useInteractionReducer, DisplayCommit } from "./useInteractionReducer";
+import {
+  useInteractionReducer,
+  DisplayCommit,
+  Command,
+} from "./useInteractionReducer";
 
 interface GraphLineProps {
   totalDepth: number;
@@ -95,6 +99,20 @@ const CommitGraph: React.FC<CommitGraphProps> = ({ displayCommits }) => (
   </Box>
 );
 
+interface CommandListProps {
+  commands: Command[];
+}
+const CommandList: React.FC<CommandListProps> = ({ commands }) => (
+  <Box marginTop={1}>
+    {commands.map(({ key, name }) => (
+      <Box key={key} marginRight={2}>
+        <Text color="white">({key})</Text>
+        <Text color="gray"> {name}</Text>
+      </Box>
+    ))}
+  </Box>
+);
+
 interface RepositoryComponentProps {
   backend: NavigatorBackend;
   repository: Repository;
@@ -121,8 +139,16 @@ export const RepositoryComponent: React.FC<RepositoryComponentProps> = ({
 
   return (
     <Box flexDirection="column">
+      <Box marginY={1} marginLeft={1}>
+        <Text backgroundColor="yellow" color="#000" bold>
+          {" "}
+          STACK ATTACK{" "}
+        </Text>
+        <Text color="gray"> Repository: </Text>
+        <Text color="white">{repository.path}</Text>
+      </Box>
       <CommitGraph displayCommits={state.commits} />
-      <Text>TODO: Line of commands</Text>
+      <CommandList commands={Array.from(state.keyboardCommands.values())} />
     </Box>
   );
 };
