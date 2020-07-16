@@ -32,7 +32,7 @@ export class GitLocal implements NavigatorBackend {
   pushCommitstoRepo(branchName: string, repoPath: string) {
     let repo: nodegit.Repository, remote: nodegit.Remote;
     //Local repo
-    nodegit.Repository.open(repoPath)
+    return nodegit.Repository.open(repoPath)
       .then(function (repoResult) {
         repo = repoResult;
         //get the origin repo
