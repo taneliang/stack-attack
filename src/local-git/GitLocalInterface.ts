@@ -219,39 +219,41 @@ export class GitLocal implements NavigatorBackend {
     commitHash: string,
     branch: string,
   ): Promise<PullRequestInfo | undefined> {
-    try{ 
+    try {
       const repoResult = await nodegit.Repository.open(repoPath);
       // TODO: Handle remotes that are not named "origin"
       const remoteResult = await repoResult.getRemote("origin");
       const { owner, repo } = remoteUrlToOwnerAndRepo(remoteResult.url());
       const octokit = getOctokit(repoPath);
-      let pullRequestInfo : PullRequestInfo | undefined;
-       try{
-      const { data } = await octokit.repos.listPullRequestsAssociatedWithCommit({
-        owner,
-        repo,
-        commit_sha: commitHash,
-      });
-      return pullRequestInfo = {
-        title: data[0].title,
-        url: data[0].url,
-        isOutdated: false,
-      };
-    } catch(e){ 
-      const pullRequestBranchMap = await this.getPullRequestBranchMap(
-        repoPath,
-        owner,
-        repo,
-      );
-      if (pullRequestBranchMap.has(branch)) {
-        pullRequestInfo = pullRequestBranchMap.get(branch);
-        if (pullRequestInfo !== undefined) {
-          pullRequestInfo.isOutdated = true;
-          return pullRequestInfo;
-        }
-      } else return undefined;
-    }
-    } catch(e) { 
+      let pullRequestInfo: PullRequestInfo | undefined;
+      try {
+        const {
+          data,
+        } = await octokit.repos.listPullRequestsAssociatedWithCommit({
+          owner,
+          repo,
+          commit_sha: commitHash,
+        });
+        return (pullRequestInfo = {
+          title: data[0].title,
+          url: data[0].url,
+          isOutdated: false,
+        });
+      } catch (e) {
+        const pullRequestBranchMap = await this.getPullRequestBranchMap(
+          repoPath,
+          owner,
+          repo,
+        );
+        if (pullRequestBranchMap.has(branch)) {
+          pullRequestInfo = pullRequestBranchMap.get(branch);
+          if (pullRequestInfo !== undefined) {
+            pullRequestInfo.isOutdated = true;
+            return pullRequestInfo;
+          }
+        } else return undefined;
+      }
+    } catch (e) {
       console.log(e);
     }
   }
