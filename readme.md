@@ -18,7 +18,7 @@ It is mildly annoying how the cascading commits hamper workflow and we wanted to
 2. Add a `sttack.config.json` file with the following format:
 
 ```{
-  "personalAccessToken": "enter your personal token, you can create from (https://docs.github.com/en/github/authenticating-to-github/creating-a-personal-access-token)",
+  "personalAccessToken": "enter your github personal token",
   "userPublicKeyPath": "enter path to your public key, eg: /Users/phuonganh/.ssh/id_rsa.pub",
   "userPrivateKeyPath": "enter path to your private key, eg: /Users/phuonganh/.ssh/id_rsa",
   "userPassphrase": "enter your passphrase"
@@ -29,6 +29,12 @@ Note: If you do not have a GitHub token, you can create one following [this](htt
 
 3. Run `yarn install`
 4. Run `yarn cli <repo_path>` where `repo_path` is the local repository path.
+
+## Features 
+
+### Rebase 
+
+### PR Stack 
 
 ## Built With
 
