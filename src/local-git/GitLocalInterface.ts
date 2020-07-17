@@ -388,7 +388,7 @@ export class GitLocal implements NavigatorBackend {
         //create PR for that branch
         await octokit.pulls.create({
           owner: owner,
-          repo: repoName,
+          repo,
           title: commitStack[i].title,
           head: branchName,
           base: baseName, //TODO: ask the user the base
@@ -411,7 +411,7 @@ export class GitLocal implements NavigatorBackend {
           const branchName = branchNames[lastIndex];
           const prList = await octokit.pulls.list({
             owner: owner,
-            repo: repoName,
+            repo,
             head: `${owner}:${branchName}`,
           });
           // Assume that all commits in commitStack already have a PR, since we've
@@ -450,7 +450,7 @@ export class GitLocal implements NavigatorBackend {
 
         return octokit.pulls.update({
           owner: owner,
-          repo: repoName,
+          repo,
           pull_number: pullRequest.number,
           body: description,
         });
