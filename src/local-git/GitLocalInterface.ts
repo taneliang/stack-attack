@@ -11,6 +11,11 @@ function refIsLocal(refString: string) {
   return refString.startsWith("refs/heads/");
 }
 
+function localRefToBranchName(refString: string) {
+  if (!refIsLocal(refString)) return refString;
+  return refString.substr("refs/heads/".length);
+}
+
 function remoteUrlToOwnerAndRepo(
   remoteUrl: string,
 ): { owner: string; repo: string } {
@@ -323,49 +328,64 @@ export class GitLocal implements NavigatorBackend {
       repo,
       nodegit.Oid.fromString(targetCommit.hash),
     );
-    const rootCommitLookup: nodegit.Commit = await nodegit.Commit.lookup(
-      repo,
-      nodegit.Oid.fromString(rootCommit.hash),
-    );
+
+    // Create a dummy target branch and cherry pick onto that. THIS WILL ONLY SUPPORT STACK REBASING
+
     // 1. Rebase each child Commit of the root commit on the target commit
     // (I'm assuming git reset --HARD needs to be done in the case of having multiple branch names??)
     // 2. Add the children of each child to a queue
     // 3. Iterate 1->2 till queue is empty
     const commitQueue: Commit[] = [rootCommit];
-    let stackAttackCommit = rootCommit;
     let commitToRebase = targetCommitLookup;
-    while (!(commitQueue.length === 0)) {
-      const childCommit = commitQueue.splice(0, 1)[0];
+    while (commitQueue.length !== 0) {
+      const [childCommit] = commitQueue.splice(0, 1);
       const childCommitLookup: nodegit.Commit = await nodegit.Commit.lookup(
         repo,
         nodegit.Oid.fromString(childCommit.hash),
       );
-      // Rebase each child commit on target Commit - TODO: GET HELP - Can use CherryPick
-      // Using CherryPick
-      const status = nodegit.Cherrypick.commit(
+
+      const index = ((await nodegit.Cherrypick.commit(
         repo,
         commitToRebase,
         childCommitLookup,
         0,
         {},
+        // Bug in type defs: `commit` returns an Index, not a number.
+        // See: https://www.nodegit.org/api/cherrypick/#cherrypick
+      )) as unknown) as nodegit.Index;
+
+      const tree = await index.writeTreeTo(repo);
+
+      const newCommitOid = await repo.createCommit(
+        "refs/heads/feature/new-branch-0", // TODO: Create and use a temp branch
+        childCommitLookup.author(),
+        childCommitLookup.committer(),
+        childCommitLookup.message(),
+        tree,
+        [commitToRebase],
       );
-      // Can have multiple names so, git reset HARD :check:
+      console.log("CPing index", index, tree, newCommitOid.tostrS());
+
+      // Use `git branch -f` to change all the original commit's local branches
+      // to point to the new one.
       childCommit.branchNames.map(async (branchName: string) => {
         // Target Commit Lookup will change if we use CherryPick
-        if (branchName.startsWith("refs/heads/")) {
-          const reference = await nodegit.Branch.create(
-            repo,
-            branchName,
-            targetCommitLookup,
-            1,
+        if (refIsLocal(branchName)) {
+          await repo.createBranch(
+            localRefToBranchName(branchName),
+            newCommitOid,
+            true,
           );
         }
       });
+
+      // TODO: Fix this commit target; this is the wrong commit. We should be rebasing the next commit on top of newCommitOid
       commitToRebase = childCommitLookup;
-      stackAttackCommit = childCommit;
     }
 
-    return Promise.resolve(stackAttackCommit);
+    // TODO: Abandon this updated-commit strategy and just reload the entire app!
+
+    return rootCommit;
   }
 
   amendAndRebaseDependentTree(repoPath: string): Promise<Commit> {
