@@ -13,7 +13,8 @@ It is mildly annoying how the cascading commits hamper workflow and the Stack At
   "userPublicKeyPath": "enter path to your public key, eg: /Users/phuonganh/.ssh/id_rsa.pub",
   "userPrivateKeyPath": "enter path to your private key, eg: /Users/phuonganh/.ssh/id_rsa",
   "userPassphrase": "enter your passphrase"
-}```
+}
+```
 
 Note: If you do not have a GitHub token, you can create one following [this](https://github.com/settings/tokens) 
 
