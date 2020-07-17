@@ -229,7 +229,7 @@ export class GitLocal implements NavigatorBackend {
       const remoteResult = await repoResult.getRemote("origin");
       const { owner, repo } = remoteUrlToOwnerAndRepo(remoteResult.url());
       const octokit = getOctokit(repoPath);
-      let pullRequestInfo: PullRequestInfo | undefined;
+
       try {
         const {
           data,
@@ -238,24 +238,27 @@ export class GitLocal implements NavigatorBackend {
           repo,
           commit_sha: commitHash,
         });
-        return (pullRequestInfo = {
-          title: data[0].title,
-          url: data[0].url,
-          isOutdated: false,
-        });
+        const pullRequestForCommit = data[0];
+        return {
+          title: pullRequestForCommit.title,
+          url: pullRequestForCommit.url,
+          isOutdated: pullRequestForCommit.head.sha !== commitHash,
+        };
       } catch (e) {
-        const pullRequestBranchMap = await this.getPullRequestBranchMap(
-          repoPath,
+        const { data } = await octokit.pulls.list({
           owner,
           repo,
+        });
+        const pullRequestForBranch = data.find(
+          (pullRequest) => pullRequest.head.ref === branch,
         );
-        if (pullRequestBranchMap.has(branch)) {
-          pullRequestInfo = pullRequestBranchMap.get(branch);
-          if (pullRequestInfo !== undefined) {
-            pullRequestInfo.isOutdated = true;
-            return pullRequestInfo;
-          }
-        } else return undefined;
+        if (pullRequestForBranch) {
+          return {
+            url: pullRequestForBranch.url,
+            title: pullRequestForBranch.title,
+            isOutdated: pullRequestForBranch.head.sha !== commitHash,
+          };
+        }
       }
     } catch (e) {
       console.log(e);
