@@ -297,39 +297,25 @@ export class GitLocal implements NavigatorBackend {
   }
 
   //Actions: push to the origin repo
-  pushCommitstoRepo(branchName: string, repoPath: string) {
-    let repo: nodegit.Repository, remote: nodegit.Remote;
+  async pushCommitstoRepo(branchName: string, repoPath: string) {
     //Local repo
-    return nodegit.Repository.open(repoPath)
-      .then(function (repoResult) {
-        repo = repoResult;
-        //get the origin repo
-        return repo.getRemote("origin");
-      })
-      .then(function (remoteResult) {
-        console.log("Remote loaded");
-        remote = remoteResult;
+    const repo = await nodegit.Repository.open(repoPath);
+    const remote = await repo.getRemote("origin");
+    console.log("Remote loaded");
 
-        //Configure and connect the remote repo
-        return remote.connect(nodegit.Enums.DIRECTION.PUSH, {
-          credentials: function (userName: string) {
+    await remote.push(
+      [`${localRefPrefix}${branchName}:${localRefPrefix}${branchName}`],
+      {
+        callbacks: {
+          credentials: function (_url: string, userName: string) {
             return nodegit.Cred.sshKeyFromAgent(userName);
           },
-        });
-      })
-      .then(function () {
-        console.log("Remote Connected?", remote.connected());
-        return remote.push([
-          `${localRefPrefix}${branchName}:${localRefPrefix}${branchName}`,
-        ]);
-      })
-      .then(function () {
-        console.log("Remote Pushed!");
-      })
-      .catch(function (error) {
-        console.log(error);
-      });
+        },
+      },
+    );
+    console.log("Remote Pushed!");
   }
+
   rebaseCommits(
     repoPath: string,
     rootCommit: Commit,
