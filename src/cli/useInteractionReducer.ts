@@ -53,6 +53,7 @@ type KeyAction = {
   payload: {
     key: string;
     dispatch: React.Dispatch<Action>;
+    reload: () => void;
   };
 };
 type Action = InitializeAction | KeyAction;
@@ -241,7 +242,7 @@ function stateForNormalMode(state: State): State {
         {
           key: "c",
           name: "PR single commit",
-          handler(state, { payload: { dispatch } }) {
+          handler(state, { payload: { reload } }) {
             const { commits, backend, repository } = state;
 
             const focusedCommitIndex = indexOfFocusedCommit(commits);
@@ -254,12 +255,7 @@ function stateForNormalMode(state: State): State {
 
             backend
               .createOrUpdatePRsForCommits(repository.path, [stackBase])
-              .then(() =>
-                dispatch({
-                  type: "initialize",
-                  payload: { backend, repository },
-                }),
-              );
+              .then(() => reload());
             return state;
           },
         },
@@ -269,7 +265,7 @@ function stateForNormalMode(state: State): State {
         {
           key: "s",
           name: "PR stack",
-          handler(state, { payload: { dispatch } }) {
+          handler(state, { payload: { reload } }) {
             const { commits, backend, repository } = state;
 
             const focusedCommitIndex = indexOfFocusedCommit(commits);
@@ -291,12 +287,7 @@ function stateForNormalMode(state: State): State {
 
             backend
               .createOrUpdatePRsForCommits(repository.path, stack)
-              .then(() =>
-                dispatch({
-                  type: "initialize",
-                  payload: { backend, repository },
-                }),
-              );
+              .then(() => reload());
             return state;
           },
         },
@@ -450,7 +441,7 @@ function stateForRebaseMode(state: State): State {
         {
           key: "c",
           name: "confirm rebase",
-          handler(state, { payload: { dispatch } }) {
+          handler(state, { payload: { reload } }) {
             if (state.modeState.type !== "rebase") {
               return state;
             }
@@ -476,12 +467,7 @@ function stateForRebaseMode(state: State): State {
                 rebaseRoot.commit,
                 rebaseTarget.commit,
               )
-              .then(() =>
-                dispatch({
-                  type: "initialize",
-                  payload: { backend, repository },
-                }),
-              );
+              .then(() => reload());
             return state;
           },
         },

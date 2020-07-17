@@ -14,6 +14,11 @@ function refIsLocal(refString: string) {
   return refString.startsWith(localRefPrefix);
 }
 
+function localRefToBranchName(refString: string) {
+  if (!refIsLocal(refString)) return refString;
+  return refString.substr("refs/heads/".length);
+}
+
 function remoteUrlToOwnerAndRepo(
   remoteUrl: string,
 ): { owner: string; repo: string } {
@@ -42,9 +47,7 @@ export class GitLocal implements NavigatorBackend {
     const refs = await repo.getReferences();
     const headHash = (await repo.getHeadCommit()).sha();
     const branchCommits = await Promise.all(
-      refs.map(
-        async (ref: nodegit.Reference) => await repo.getBranchCommit(ref),
-      ),
+      refs.map(async (ref: nodegit.Reference) => repo.getBranchCommit(ref)),
     );
     const branchNames: string[] = refs.map((ref: nodegit.Reference) =>
       ref.name(),
@@ -115,6 +118,7 @@ export class GitLocal implements NavigatorBackend {
               if (!commitChildrenMap.has(parentHash)) {
                 commitChildrenMap.set(parentHash, new Set());
               }
+
               commitChildrenMap.get(parentHash)!.add(sha);
             });
 
@@ -193,34 +197,10 @@ export class GitLocal implements NavigatorBackend {
     };
   }
 
-  async getPullRequestBranchMap(
-    repoPath: string,
-    owner: string,
-    repo: string,
-  ): Promise<Map<string, PullRequestInfo>> {
-    const octokit = getOctokit(repoPath);
-    const { data } = await octokit.pulls.list({
-      owner,
-      repo,
-    });
-    let pullRequestBranchMap = new Map<string, PullRequestInfo>();
-    data.forEach((pullRequest: any) => {
-      if (!pullRequestBranchMap.has(pullRequest.head.ref)) {
-        let pullRequestInfo = {
-          url: pullRequest.url,
-          title: pullRequest.title,
-          isOutdated: false,
-        };
-        pullRequestBranchMap.set(pullRequest.head.ref, pullRequestInfo);
-      }
-    });
-    return pullRequestBranchMap;
-  }
-
   async getPullRequestInfo(
     repoPath: string,
     commitHash: string,
-    branch: string,
+    localRefName: string,
   ): Promise<PullRequestInfo | undefined> {
     try {
       const repoResult = await nodegit.Repository.open(repoPath);
@@ -228,7 +208,7 @@ export class GitLocal implements NavigatorBackend {
       const remoteResult = await repoResult.getRemote("origin");
       const { owner, repo } = remoteUrlToOwnerAndRepo(remoteResult.url());
       const octokit = getOctokit(repoPath);
-      let pullRequestInfo: PullRequestInfo | undefined;
+
       try {
         const {
           data,
@@ -237,24 +217,28 @@ export class GitLocal implements NavigatorBackend {
           repo,
           commit_sha: commitHash,
         });
-        return (pullRequestInfo = {
-          title: data[0].title,
-          url: data[0].url,
-          isOutdated: false,
-        });
+        const pullRequestForCommit = data[0];
+        return {
+          title: pullRequestForCommit.title,
+          url: pullRequestForCommit.url,
+          isOutdated: pullRequestForCommit.head.sha !== commitHash,
+        };
       } catch (e) {
-        const pullRequestBranchMap = await this.getPullRequestBranchMap(
-          repoPath,
+        const { data } = await octokit.pulls.list({
           owner,
           repo,
+        });
+        const branchName = localRefToBranchName(localRefName);
+        const pullRequestForBranch = data.find(
+          (pullRequest) => pullRequest.head.ref === branchName,
         );
-        if (pullRequestBranchMap.has(branch)) {
-          pullRequestInfo = pullRequestBranchMap.get(branch);
-          if (pullRequestInfo !== undefined) {
-            pullRequestInfo.isOutdated = true;
-            return pullRequestInfo;
-          }
-        } else return undefined;
+        if (pullRequestForBranch) {
+          return {
+            url: pullRequestForBranch.url,
+            title: pullRequestForBranch.title,
+            isOutdated: pullRequestForBranch.head.sha !== commitHash,
+          };
+        }
       }
     } catch (e) {
       console.log(e);
@@ -294,6 +278,7 @@ export class GitLocal implements NavigatorBackend {
       commitStack[i].branchNames.push(newBranchName);
       await repo.createBranch(newBranchName, commitStack[i].hash, true);
     }
+
     return commitStack;
   }
   //Actions: push to the origin repo
@@ -311,7 +296,7 @@ export class GitLocal implements NavigatorBackend {
     return nodegit.Repository.open(repoPath)
       .then(function (repoResult) {
         repo = repoResult;
-        //get the origin repo
+        // Get the origin repo
         return repo.getRemote("origin");
       })
       .then(function (remoteResult) {
@@ -389,13 +374,87 @@ export class GitLocal implements NavigatorBackend {
   //   console.log("Remote Pushed!");
   // }
 
-  rebaseCommits(
+  async rebaseCommits(
     repoPath: string,
     rootCommit: Commit,
     targetCommit: Commit,
   ): Promise<Commit> {
-    return Promise.reject("NOT IMPLEMENTED");
+    const repo = await nodegit.Repository.open(repoPath);
+
+    // Add temp branch that points to the target commit.
+    const tempBranchName = "sttack-temp-cherry-pick-target";
+
+    // "Rebases" commit stack rooted at `rootCommit` onto `targetCommit`.
+    // This loop traverses **stack** from rootCommit to the tip of the stack.
+    // TODO: Implement tree rebasing. Currently only rebases a linear stack of commits.
+    let originalCommit: Commit | undefined = rootCommit;
+    let targetCommitOid = nodegit.Oid.fromString(targetCommit.hash);
+    while (originalCommit) {
+      const originalNodegitCommit = await nodegit.Commit.lookup(
+        repo,
+        nodegit.Oid.fromString(originalCommit.hash),
+      );
+      const targetNodegitCommit = await repo.getCommit(targetCommitOid);
+
+      const index = ((await nodegit.Cherrypick.commit(
+        repo,
+        originalNodegitCommit,
+        targetNodegitCommit,
+        0,
+        {},
+        // Bug in type defs: `commit` returns an Index, not a number.
+        // See: https://www.nodegit.org/api/cherrypick/#cherrypick
+      )) as unknown) as nodegit.Index;
+
+      const tree = await index.writeTreeTo(repo);
+
+      const cherryPickTargetRef = await repo.createBranch(
+        tempBranchName,
+        targetCommitOid,
+        true,
+      );
+
+      const newCommitOid = await repo.createCommit(
+        cherryPickTargetRef.toString(),
+        originalNodegitCommit.author(),
+        originalNodegitCommit.committer(),
+        originalNodegitCommit.message(),
+        tree,
+        [targetNodegitCommit],
+      );
+
+      // Use `git branch -f` to change all the original commit's local branches
+      // to point to the new one.
+      originalCommit.branchNames.map(async (branchName: string) => {
+        // Target Commit Lookup will change if we use CherryPick
+        if (refIsLocal(branchName)) {
+          const branchRef = await repo.getReference(branchName);
+          const isBranchHead = nodegit.Branch.isHead(branchRef);
+          if (isBranchHead) {
+            repo.detachHead();
+          }
+          const newBranchRef = await repo.createBranch(
+            localRefToBranchName(branchName),
+            newCommitOid,
+            true,
+          );
+          if (isBranchHead) {
+            repo.setHead(newBranchRef.toString());
+          }
+        }
+      });
+
+      targetCommitOid = newCommitOid;
+      originalCommit = originalCommit.childCommits[0];
+    }
+
+    // Remove temp branch
+    nodegit.Branch.delete(await repo.getBranch(tempBranchName));
+
+    // TODO: Update the commit data and use it in the frontend
+    return rootCommit;
   }
+
   amendAndRebaseDependentTree(repoPath: string): Promise<Commit> {
     return Promise.reject("NOT IMPLEMENTED");
   }
@@ -410,7 +469,7 @@ export class GitLocal implements NavigatorBackend {
       commitStack,
     );
 
-    //get information for octokit.pulls.create()
+    // Get information for octokit.pulls.create()
     const repoResult = await nodegit.Repository.open(repoPath);
     // TODO: Handle remotes that are not named "origin"
     const remoteResult = await repoResult.getRemote("origin");
