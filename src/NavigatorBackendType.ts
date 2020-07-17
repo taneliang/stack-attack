@@ -8,7 +8,7 @@ import nodegit from "nodegit";
  */
 export interface PullRequestInfo {
   url: string;
-  shortName: string;
+  title: string;
 
   isOutdated: boolean;
 }
@@ -19,7 +19,7 @@ export interface Commit {
   timestamp: Date;
   author: nodegit.Signature;
   branchNames: string[];
-  pullRequestInfo?: PullRequestInfo;
+  pullRequestInfo?: PullRequestInfo | undefined;
 
   parentCommits: Commit[];
   childCommits: Commit[];
@@ -42,18 +42,18 @@ export type NavigatorBackend = {
    * @returns Cached repository information, along with a promise that returns
    * the repository information updated with remote data (e.g. PRs).
    */
-  getRepositoryInformation(
+  getRepositoryInformation: (
     repoPath: string,
-  ): Promise<{
+  ) => Promise<{
     repo: Repository;
     remoteRepoInfoPromise: Promise<Repository>;
   }>;
 
   // Actions
-  createOrUpdateBranchesForCommitStack(
+  createOrUpdateBranchesForCommitStack: (
     repoPath: string,
     commitStack: Commit[],
-  ): Promise<Commit[]>;
+  ) => Promise<Commit[]>;
 
   /**
    * Uproot a commit tree and rebase it onto `targetCommit`.
@@ -62,21 +62,21 @@ export type NavigatorBackend = {
    * @param targetCommit The commit the tree should be rebased on.
    * @returns Updated `targetCommit`.
    */
-  rebaseCommits(
+  rebaseCommits: (
     repoPath: string,
     rootCommit: Commit,
     targetCommit: Commit,
-  ): Promise<Commit>;
+  ) => Promise<Commit>;
 
   /**
    * Amend the checked-out commit with the staged changes, then rebase this
    * commit's dependents onto the ammended commit.
    * @param repoPath Path to repository root.
    */
-  amendAndRebaseDependentTree(repoPath: string): Promise<Commit>;
+  amendAndRebaseDependentTree: (repoPath: string) => Promise<Commit>;
 
-  createOrUpdatePRsForCommits(
+  createOrUpdatePRsForCommits: (
     repoPath: string,
     commitStack: Commit[],
-  ): Promise<Commit[]>;
+  ) => Promise<Commit[]>;
 };
