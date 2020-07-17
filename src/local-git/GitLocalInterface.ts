@@ -11,6 +11,11 @@ function refIsLocal(refString: string) {
   return refString.startsWith("refs/heads/");
 }
 
+function localRefToBranchName(refString: string) {
+  if (!refIsLocal(refString)) return refString;
+  return refString.substr("refs/heads/".length);
+}
+
 function remoteUrlToOwnerAndRepo(
   remoteUrl: string,
 ): { owner: string; repo: string } {
@@ -39,9 +44,7 @@ export class GitLocal implements NavigatorBackend {
     const refs = await repo.getReferences();
     const headHash = (await repo.getHeadCommit()).sha();
     const branchCommits = await Promise.all(
-      refs.map(
-        async (ref: nodegit.Reference) => await repo.getBranchCommit(ref),
-      ),
+      refs.map(async (ref: nodegit.Reference) => repo.getBranchCommit(ref)),
     );
     const branchNames: string[] = refs.map((ref: nodegit.Reference) =>
       ref.name(),
@@ -112,6 +115,7 @@ export class GitLocal implements NavigatorBackend {
               if (!commitChildrenMap.has(parentHash)) {
                 commitChildrenMap.set(parentHash, new Set());
               }
+
               commitChildrenMap.get(parentHash)!.add(sha);
             });
 
@@ -265,8 +269,8 @@ export class GitLocal implements NavigatorBackend {
   ): Promise<Commit[]> {
     const repo = await nodegit.Repository.open(repoPath);
     for (let i = 0; i < commitStack.length; i++) {
-      const commitMessage = "feature/new-branch"; //TODO: get the branch name from user
-      const newBranchName = `${commitMessage}-${i}`; //branch name is "commit message-branch number"
+      const commitMessage = "feature/new-branch"; // TODO: get the branch name from user
+      const newBranchName = `${commitMessage}-${i}`; // Branch name is "commit message-branch number"
       commitStack[i].branchNames.push(newBranchName);
       const commitTarget = await nodegit.Commit.lookup(
         repo,
@@ -274,26 +278,28 @@ export class GitLocal implements NavigatorBackend {
       );
       await nodegit.Branch.create(repo, newBranchName, commitTarget, 1);
     }
+
     return commitStack;
   }
 
-  //Actions: push to the origin repo
+  // Actions: push to the origin repo
   pushCommitstoRepo(branchName: string, repoPath: string) {
-    let repo: nodegit.Repository, remote: nodegit.Remote;
-    //Local repo
+    let repo: nodegit.Repository;
+    let remote: nodegit.Remote;
+    // Local repo
     return nodegit.Repository.open(repoPath)
       .then(function (repoResult) {
         repo = repoResult;
-        //get the origin repo
+        // Get the origin repo
         return repo.getRemote("origin");
       })
       .then(function (remoteResult) {
         console.log("Remote loaded");
         remote = remoteResult;
 
-        //Configure and connect the remote repo
+        // Configure and connect the remote repo
         return remote.connect(nodegit.Enums.DIRECTION.PUSH, {
-          credentials: function (userName: string) {
+          credentials(userName: string) {
             return nodegit.Cred.sshKeyFromAgent(userName);
           },
         });
@@ -311,60 +317,138 @@ export class GitLocal implements NavigatorBackend {
         console.log(error);
       });
   }
-  rebaseCommits(
+
+  async rebaseCommits(
     repoPath: string,
     rootCommit: Commit,
     targetCommit: Commit,
   ): Promise<Commit> {
-    return Promise.reject("NOT IMPLEMENTED");
+    const repo = await nodegit.Repository.open(repoPath);
+
+    // Add temp branch that points to the target commit.
+    const tempBranchName = "sttack-temp-cherry-pick-target";
+
+    // "Rebases" commit stack rooted at `rootCommit` onto `targetCommit`.
+    // This loop traverses **stack** from rootCommit to the tip of the stack.
+    // TODO: Implement tree rebasing. Currently only rebases a linear stack of commits.
+    let originalCommit: Commit | undefined = rootCommit;
+    let targetCommitOid = nodegit.Oid.fromString(targetCommit.hash);
+    while (originalCommit) {
+      const originalNodegitCommit = await nodegit.Commit.lookup(
+        repo,
+        nodegit.Oid.fromString(originalCommit.hash),
+      );
+      const targetNodegitCommit = await repo.getCommit(targetCommitOid);
+
+      const index = ((await nodegit.Cherrypick.commit(
+        repo,
+        originalNodegitCommit,
+        targetNodegitCommit,
+        0,
+        {},
+        // Bug in type defs: `commit` returns an Index, not a number.
+        // See: https://www.nodegit.org/api/cherrypick/#cherrypick
+      )) as unknown) as nodegit.Index;
+
+      const tree = await index.writeTreeTo(repo);
+
+      const cherryPickTargetRef = await repo.createBranch(
+        tempBranchName,
+        targetCommitOid,
+        true,
+      );
+
+      const newCommitOid = await repo.createCommit(
+        cherryPickTargetRef.toString(),
+        originalNodegitCommit.author(),
+        originalNodegitCommit.committer(),
+        originalNodegitCommit.message(),
+        tree,
+        [targetNodegitCommit],
+      );
+
+      // Use `git branch -f` to change all the original commit's local branches
+      // to point to the new one.
+      originalCommit.branchNames.map(async (branchName: string) => {
+        // Target Commit Lookup will change if we use CherryPick
+        if (refIsLocal(branchName)) {
+          const branchRef = await repo.getReference(branchName);
+          const isBranchHead = nodegit.Branch.isHead(branchRef);
+          if (isBranchHead) {
+            repo.detachHead();
+          }
+          const newBranchRef = await repo.createBranch(
+            localRefToBranchName(branchName),
+            newCommitOid,
+            true,
+          );
+          if (isBranchHead) {
+            repo.setHead(newBranchRef.toString());
+          }
+        }
+      });
+
+      targetCommitOid = newCommitOid;
+      originalCommit = originalCommit.childCommits[0];
+    }
+
+    // Remove temp branch
+    nodegit.Branch.delete(await repo.getBranch(tempBranchName));
+
+    // TODO: Abandon this updated-commit strategy and just reload the entire app!
+    return rootCommit;
   }
+
   amendAndRebaseDependentTree(repoPath: string): Promise<Commit> {
     return Promise.reject("NOT IMPLEMENTED");
   }
-  //octokit.pulls.create({owner, repo, title, head, base, body, maintainer_can_modify, draft});
+
+  // Octokit.pulls.create({owner, repo, title, head, base, body, maintainer_can_modify, draft});
   async createOrUpdatePRsForCommits(
     repoPath: string,
     commitStack: Commit[],
   ): Promise<Commit[]> {
-    //create branch for each commit
+    // Create branch for each commit
     commitStack = await this.createOrUpdateBranchesForCommitStack(
       repoPath,
       commitStack,
     );
 
-    //get information for octokit.pulls.create()
+    // Get information for octokit.pulls.create()
     const repoResult = await nodegit.Repository.open(repoPath);
     // TODO: Handle remotes that are not named "origin"
     const remoteResult = await repoResult.getRemote("origin");
     const { owner, repo } = remoteUrlToOwnerAndRepo(remoteResult.url());
     const octokit = getOctokit(repoPath);
-    //for each commit/branch in the stack
+    // For each commit/branch in the stack
     for (let i = 0; i < commitStack.length; i++) {
       const lastIndex = commitStack[i].branchNames.length - 1;
       const branchName = commitStack[i].branchNames[lastIndex];
 
-      //push the commits to that branch on the remote repository
+      // Push the commits to that branch on the remote repository
       await this.pushCommitstoRepo(branchName, repoPath);
 
-      //find the base branch
+      // Find the base branch
       let baseName: string;
       if (i === 0) baseName = "master";
       else {
         const lastIndexofLastCommit = commitStack[i - 1].branchNames.length - 1;
         baseName = commitStack[i - 1].branchNames[lastIndexofLastCommit];
       }
-      //create PR for that branch
+
+      // Create PR for that branch
       await octokit.pulls.create({
         owner,
         repo,
         title: commitStack[i].title,
         head: branchName,
-        base: baseName, //TODO: ask the user the base
-        body: commitStack[i].title, //TODO: description for PR
+        base: baseName, // TODO: ask the user the base
+        body: commitStack[i].title, // TODO: description for PR
         maintainer_can_modify: true,
-        draft: true, //draft PR default
+        draft: true, // Draft PR default
       });
     }
+
     return commitStack;
   }
 }
