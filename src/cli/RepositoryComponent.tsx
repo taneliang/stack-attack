@@ -129,10 +129,12 @@ const CommandList: React.FC<CommandListProps> = ({ commands }) => (
 interface RepositoryComponentProps {
   backend: NavigatorBackend;
   repository: Repository;
+  reload: () => void;
 }
 export const RepositoryComponent: React.FC<RepositoryComponentProps> = ({
   backend,
   repository,
+  reload,
 }) => {
   const { exit } = useApp();
 
@@ -142,11 +144,11 @@ export const RepositoryComponent: React.FC<RepositoryComponentProps> = ({
     if (input === "q") {
       exit();
     } else if (key.upArrow) {
-      dispatch({ type: "key", payload: { key: "↑", dispatch } });
+      dispatch({ type: "key", payload: { key: "↑", dispatch, reload } });
     } else if (key.downArrow) {
-      dispatch({ type: "key", payload: { key: "↓", dispatch } });
+      dispatch({ type: "key", payload: { key: "↓", dispatch, reload } });
     } else {
-      dispatch({ type: "key", payload: { key: input, dispatch } });
+      dispatch({ type: "key", payload: { key: input, dispatch, reload } });
     }
   });
 

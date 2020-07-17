@@ -375,7 +375,7 @@ export class GitLocal implements NavigatorBackend {
     // Remove temp branch
     nodegit.Branch.delete(await repo.getBranch(tempBranchName));
 
-    // TODO: Abandon this updated-commit strategy and just reload the entire app!
+    // TODO: Update the commit data and use it in the frontend
     return rootCommit;
   }
 
