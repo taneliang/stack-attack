@@ -263,11 +263,14 @@ export class GitLocal implements NavigatorBackend {
     commitStack: Commit[],
   ): Promise<Commit[]> {
     const repo = await nodegit.Repository.open(repoPath);
-    for (const [i, element] of commitStack.entries()) {
+    for (let i = 0; i < commitStack.length; i++) {
       const commitMessage = "feature/new-branch"; // TODO: get the branch name from user
       const newBranchName = `${commitMessage}-${i}`; // Branch name is "commit message-branch number"
-      element.branchNames.push(newBranchName);
-      const commitTarget = await nodegit.Commit.lookup(repo, element.hash);
+      commitStack[i].branchNames.push(newBranchName);
+      const commitTarget = await nodegit.Commit.lookup(
+        repo,
+        commitStack[i].hash,
+      );
       await nodegit.Branch.create(repo, newBranchName, commitTarget, 1);
     }
 
