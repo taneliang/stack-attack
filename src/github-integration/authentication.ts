@@ -5,12 +5,15 @@ let cachedOctokit: Octokit | undefined;
 let repoPathForCachedOctokit: string | undefined;
 
 function octokitConstructor(repoPath: string): Octokit {
-  let personalAccessToken: string;
   try {
     const configFileContents = fs
       .readFileSync(`${repoPath}/sttack.config.json`)
       .toString();
-    personalAccessToken = JSON.parse(configFileContents);
+    const { personalAccessToken } = JSON.parse(configFileContents);
+    const octokit = new Octokit({
+      auth: personalAccessToken,
+    });
+    return octokit;
   } catch (error) {
     console.log(error);
     console.log(
@@ -18,11 +21,6 @@ function octokitConstructor(repoPath: string): Octokit {
     );
     process.exit(1);
   }
-
-  const octokit = new Octokit({
-    auth: personalAccessToken,
-  });
-  return octokit;
 }
 
 export function getOctokit(repoPath: string): Octokit {
