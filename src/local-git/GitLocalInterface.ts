@@ -194,30 +194,6 @@ export class GitLocal implements NavigatorBackend {
     };
   }
 
-  async getPullRequestBranchMap(
-    repoPath: string,
-    owner: string,
-    repo: string,
-  ): Promise<Map<string, PullRequestInfo>> {
-    const octokit = getOctokit(repoPath);
-    const { data } = await octokit.pulls.list({
-      owner,
-      repo,
-    });
-    let pullRequestBranchMap = new Map<string, PullRequestInfo>();
-    data.forEach((pullRequest: any) => {
-      if (!pullRequestBranchMap.has(pullRequest.head.ref)) {
-        let pullRequestInfo = {
-          url: pullRequest.url,
-          title: pullRequest.title,
-          isOutdated: false,
-        };
-        pullRequestBranchMap.set(pullRequest.head.ref, pullRequestInfo);
-      }
-    });
-    return pullRequestBranchMap;
-  }
-
   async getPullRequestInfo(
     repoPath: string,
     commitHash: string,
