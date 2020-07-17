@@ -7,8 +7,10 @@ import {
 import nodegit from "nodegit";
 import { getOctokit } from "../github-integration/authentication";
 
+const localRefPrefix = "refs/heads/";
+
 function refIsLocal(refString: string) {
-  return refString.startsWith("refs/heads/");
+  return refString.startsWith(localRefPrefix);
 }
 
 function remoteUrlToOwnerAndRepo(
@@ -263,15 +265,23 @@ export class GitLocal implements NavigatorBackend {
     repoPath: string,
     commitStack: Commit[],
   ): Promise<Commit[]> {
+    // TODO: Get from user
+    const stackBranchBaseName = "feature/new-branch";
+    const stackBranchNamePrefix = `${stackBranchBaseName}-`;
+
     const repo = await nodegit.Repository.open(repoPath);
     //assume we're operating on the entire stack
     for (let i = 0; i < commitStack.length; i++) {
-      //Example: ["origin/master", "feature/new-branch-1"];
-      //if the commit has a branch "feature/new-branch-", don't create a new branch
+      //Example: ["refs/heads/origin/master", "refs/heads/feature/new-branch-1"];
+      //if the commit has a branch "refs/heads/feature/new-branch-", don't create a new branch
       if (commitStack[i].branchNames.length > 0) {
         let skip = false;
         for (let j = 0; j < commitStack[i].branchNames.length; j++) {
-          if (commitStack[i].branchNames[j].startsWith("feature/new-branch")) {
+          if (
+            commitStack[i].branchNames[j].startsWith(
+              `${localRefPrefix}${stackBranchNamePrefix}`,
+            )
+          ) {
             skip = true;
             break;
           }
@@ -279,14 +289,9 @@ export class GitLocal implements NavigatorBackend {
         if (skip) continue;
       }
       //else: create a new branch
-      // TODO: Get from user
-      const newBranchName = `feature/new-branch-${i}`; //branch name is "feature/new-branch-number"
+      const newBranchName = `${stackBranchNamePrefix}${i}`;
       commitStack[i].branchNames.push(newBranchName);
-      const commitTarget = await nodegit.Commit.lookup(
-        repo,
-        commitStack[i].hash,
-      );
-      await nodegit.Branch.create(repo, newBranchName, commitTarget, 1);
+      await repo.createBranch(newBranchName, commitStack[i].hash, true);
     }
     return commitStack;
   }
@@ -315,7 +320,7 @@ export class GitLocal implements NavigatorBackend {
       .then(function () {
         console.log("Remote Connected?", remote.connected());
         return remote.push([
-          `refs/heads/${branchName}:refs/heads/${branchName}`,
+          `${localRefPrefix}${branchName}:${localRefPrefix}${branchName}`,
         ]);
       })
       .then(function () {
@@ -402,10 +407,7 @@ export class GitLocal implements NavigatorBackend {
     // Get list of PRs
     const pullRequests = await Promise.all(
       commitStack
-        .filter(
-          ({ branchNames }) =>
-            !!branchNames.find((name) => name.startsWith("refs/heads/")),
-        )
+        .filter(({ branchNames }) => !!branchNames.find(refIsLocal))
         .map(async ({ branchNames }) => {
           const lastIndex = branchNames.length - 1;
           const branchName = branchNames[lastIndex];
