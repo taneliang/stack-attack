@@ -6,6 +6,7 @@ import {
 } from "../NavigatorBackendType";
 import nodegit from "nodegit";
 import { getOctokit } from "../github-integration/authentication";
+import { v4 as uuidv4 } from "uuid";
 import fs from "fs";
 
 const localRefPrefix = "refs/heads/";
@@ -251,7 +252,7 @@ export class GitLocal implements NavigatorBackend {
     commitStack: Commit[],
   ): Promise<Commit[]> {
     // TODO: Get from user
-    const stackBranchBaseName = "feature/new-branch";
+    const stackBranchBaseName = uuidv4().substr(0, 5); // "feature/new-branch";
     const stackBranchNamePrefix = `${stackBranchBaseName}-`;
 
     const repo = await nodegit.Repository.open(repoPath);
@@ -275,7 +276,7 @@ export class GitLocal implements NavigatorBackend {
       }
       //else: create a new branch
       const newBranchName = `${stackBranchNamePrefix}${i}`;
-      commitStack[i].branchNames.push(newBranchName);
+      commitStack[i].branchNames.push(`${localRefPrefix}${newBranchName}`);
       await repo.createBranch(newBranchName, commitStack[i].hash, true);
     }
 
@@ -508,6 +509,7 @@ export class GitLocal implements NavigatorBackend {
             commitStack[i - 1].branchNames.length - 1;
           baseName = commitStack[i - 1].branchNames[lastIndexofLastCommit];
         }
+
         //create PR for that branch
         await octokit.pulls.create({
           owner: owner,
