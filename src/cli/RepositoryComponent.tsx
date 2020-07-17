@@ -28,18 +28,24 @@ const GraphLine: React.FC<GraphLineProps> = ({
     )
     .join(" ");
 
-  const secondLineBars = Array.from(
+  const secondLine = Array.from({ length: totalDepth }, (_, i) => i)
+    .map(() => "|")
+    .join(" ");
+
+  const thirdLineBars = Array.from(
     { length: totalDepth - (hasFork ? 1 : 0) },
     (_, i) => i,
   )
     .map(() => "|")
     .join(" ");
-  const secondLine = `${secondLineBars}${hasFork ? "/" : ""}`;
+  const thirdLine = `${thirdLineBars}${hasFork ? "/" : ""}`;
 
   return (
-    <Box height={2} flexDirection="column" paddingRight={1}>
+    <Box flexDirection="column" paddingRight={1} flexShrink={0}>
       <Text color="cyan">{firstLine}</Text>
       <Text color="cyan">{secondLine}</Text>
+      <Text color="cyan">{secondLine}</Text>
+      <Text color="cyan">{thirdLine}</Text>
     </Box>
   );
 };
@@ -49,7 +55,7 @@ interface CommitInfoProps {
 }
 const CommitInfo: React.FC<CommitInfoProps> = ({
   displayCommit: {
-    commit: { hash, timestamp, title, author, branchNames },
+    commit: { hash, timestamp, title, author, branchNames, pullRequestInfo },
     isFocused,
     isBeingMoved,
   },
@@ -60,7 +66,7 @@ const CommitInfo: React.FC<CommitInfoProps> = ({
         <Text
           color="blueBright"
           backgroundColor={isFocused ? "yellow" : "none"}>
-          {hash}
+          {hash.substr(0, 6)}
         </Text>{" "}
         -{" "}
       </Text>
@@ -71,9 +77,14 @@ const CommitInfo: React.FC<CommitInfoProps> = ({
             <Text color="greenBright">{` (${branchNames.join(", ")})`}</Text>
           )}
         </Box>
-        <Text>
-          {title} - <Text color="blueBright">{author.toString()}</Text>
-        </Text>
+        <Text>{title}</Text>
+        <Text color="blueBright">{author.toString()}</Text>
+        {pullRequestInfo && (
+          <Text color="green">
+            {pullRequestInfo.url}
+            {pullRequestInfo.isOutdated && <Text color="red"> OUTDATED</Text>}
+          </Text>
+        )}
       </Box>
     </Box>
   );
@@ -142,7 +153,7 @@ export const RepositoryComponent: React.FC<RepositoryComponentProps> = ({
   return (
     <Box flexDirection="column">
       <Box marginY={1} marginLeft={1}>
-        <Text backgroundColor="yellow" color="#000" bold>
+        <Text bold backgroundColor="yellow" color="#000">
           {" "}
           STACK ATTACK{" "}
         </Text>

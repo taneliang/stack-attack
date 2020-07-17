@@ -74,6 +74,7 @@ export const backend: NavigatorBackend = {
     if (rootCommit === targetCommit) {
       return Promise.reject("Circular reference!");
     }
+
     return new Promise((resolve) => {
       setTimeout(() => {
         rootCommit.parentCommits[0].childCommits.splice(

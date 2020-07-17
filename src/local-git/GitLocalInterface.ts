@@ -7,6 +7,29 @@ import {
 import nodegit from "nodegit";
 import { getOctokit } from "../github-integration/authentication";
 
+function refIsLocal(refString: string) {
+  return refString.startsWith("refs/heads/");
+}
+
+function remoteUrlToOwnerAndRepo(
+  remoteUrl: string,
+): { owner: string; repo: string } {
+  // Sample URLs:
+  // "https://github.com/taneliang/stack-attack"
+  // "git@github.com:taneliang/stack-attack.git"
+  // "git@github.com:taneliang/hello.world"
+  // TODO: Check if an owner/repo can contain "/" or ":"
+  const [rawRepo, owner] = remoteUrl
+    .split("/")
+    .flatMap((s) => s.split(":"))
+    .reverse();
+  // TODO: Check if it's possible for a repo name to end with ".git"
+  const repo = rawRepo.endsWith(".git")
+    ? rawRepo.substr(0, rawRepo.length - 4)
+    : rawRepo;
+  return { owner, repo };
+}
+
 export class GitLocal implements NavigatorBackend {
   async getRepositoryInformation(
     repoPath: string,
@@ -21,81 +44,65 @@ export class GitLocal implements NavigatorBackend {
     const branchNames: string[] = refs.map((ref: nodegit.Reference) =>
       ref.name(),
     );
-    const interestingCommit = branchCommits[0];
-    let baseMostCommit = nodegit.Oid.fromString(interestingCommit.sha());
-    if (branchCommits.length > 1) {
-      baseMostCommit = await branchCommits.reduce(
-        async (interestingCommit: Promise<nodegit.Oid>, branchCommit) => {
-          const interestingCommitOid = await interestingCommit;
-          const branchCommitOid = nodegit.Oid.fromString(branchCommit.sha());
-          return nodegit.Merge.base(
-            repo,
-            interestingCommitOid,
-            branchCommitOid,
-          );
-        },
-        Promise.resolve(nodegit.Oid.fromString(interestingCommit.sha())),
-      );
-    }
 
-    const baseCommitLookup = await nodegit.Commit.lookup(repo, baseMostCommit);
+    // Compute the most recent common ancestor of all branches.
+    const commonAncestorCommitOid = await branchCommits.reduce(
+      async (
+        interestingCommit: Promise<nodegit.Oid> | nodegit.Oid,
+        branchCommit,
+      ) => {
+        const interestingCommitOid = await interestingCommit;
+        const branchCommitOid = nodegit.Oid.fromString(branchCommit.sha());
+        return nodegit.Merge.base(repo, interestingCommitOid, branchCommitOid);
+      },
+      nodegit.Oid.fromString(branchCommits[0].sha()),
+    );
+
+    // Find all commits and build children maps
+    /**
+     * Maps commit hashes to their childrens' commit hashes.
+     *
+     * This needs to exist as we can only retrieve a commit's parents, but we
+     * actually want to build relationships with its children.
+     *
+     * Commit hash keys *are not* guaranteed to exist in `commitHashDict`.
+     * Commit hashes in the sets *are* guaranteed to exist in
+     * `commitHashDict` as we traverse from children to parents.
+     */
+    const commitChildrenMap = new Map<string, Set<string>>();
     const commitHashDict = new Map<string, Commit>();
     await Promise.all(
-      refs.map((ref: nodegit.Reference) => {
+      refs.map((ref) => {
         return new Promise(async (resolve, _) => {
           const history = (await repo.getBranchCommit(ref)).history();
-          const branchName = ref.name();
-          /**
-           * Maps commit hashes to their childrens' commit hashes.
-           *
-           * Commit hash keys *are not* guaranteed to exist in `commitHashDict`.
-           * Commit hashes in the sets *are* guaranteed to exist in
-           * `commitHashDict` as we traverse from children to parents.
-           */
-          const commitChildrenMap = new Map<string, Set<string>>();
           let stopped = false;
 
-          history.on("commit", async (nodegitCommit: nodegit.Commit) => {
+          history.on("commit", (nodegitCommit: nodegit.Commit) => {
             if (stopped) {
               return;
             }
-
             const sha = nodegitCommit.sha();
 
-            // Create a commit before we do the check below as we need to await it
-            // and we don't want the result of the check to be invalid if another
-            // execution/event loop(?) sets it.
-            const newCommit = await this.shaToCommit(sha, repo, branchName);
-
-            // If the commit is already in `commitHashDict`, update the branch name and
-            // stop because we have already processed it.
+            // If the commit is already in `commitHashDict`, stop because we
+            // have already processed it.
             if (commitHashDict.has(sha)) {
-              commitHashDict.get(sha)?.branchNames.push(branchName);
               stopped = true;
               return;
             }
 
-            // If not, the commit has not been seen before.
-
-            // 1. Create the commit and add it to `commitHashDict`.
+            // Create a new commit and add it to `commitHashDict`.
+            const newCommit: Commit = {
+              title: nodegitCommit.summary(),
+              hash: sha,
+              timestamp: nodegitCommit.date(),
+              author: nodegitCommit.author(),
+              branchNames: [],
+              parentCommits: [],
+              childCommits: [],
+            };
             commitHashDict.set(sha, newCommit);
 
-            // 2. Build the relationships with the commit's children, which we
-            // should have seen before.
-            if (commitChildrenMap.has(sha)) {
-              const childrenHashes = commitChildrenMap.get(sha)!;
-              childrenHashes.forEach((childHash) => {
-                const childCommit = commitHashDict.get(childHash)!;
-                childCommit.parentCommits = [
-                  ...new Set([...childCommit.parentCommits, newCommit]),
-                ];
-                newCommit.childCommits = [
-                  ...new Set([...newCommit.childCommits, childCommit]),
-                ];
-              });
-            }
-
-            // 3. Update the commit's children.
+            // Update the commit's children.
             const parentHashes = nodegitCommit
               .parents()
               .map((parent) => parent.tostrS());
@@ -106,6 +113,11 @@ export class GitLocal implements NavigatorBackend {
 
               commitChildrenMap.get(parentHash)!.add(sha);
             });
+
+            // Stop if this is the common ancestor commit
+            if (nodegitCommit.id().equal(commonAncestorCommitOid)) {
+              stopped = true;
+            }
           });
 
           history.on("end", () => resolve());
@@ -113,102 +125,139 @@ export class GitLocal implements NavigatorBackend {
         });
       }),
     );
-    const hasUncommittedChanges = repoStatus.length > 0;
-    const rootDisplayCommit: Commit = {
-      title: baseCommitLookup.summary(),
-      hash: baseCommitLookup.sha(),
-      timestamp: baseCommitLookup.date(),
-      author: baseCommitLookup.author(),
-      branchNames,
-      pullRequestInfo: this.getPullRequestInfo(
-        baseCommitLookup.author().name(),
-        repo,
-        baseCommitLookup.sha(),
-      ),
-      parentCommits: commitHashDict.get(baseCommitLookup.sha())?.parentCommits!,
-      childCommits: commitHashDict.get(baseCommitLookup.sha())?.childCommits!,
-    };
 
-    return Promise.resolve({
-      repo: {
-        path: repoPath,
-        hasUncommittedChanges,
-        headHash,
-        rootDisplayCommit,
-      },
-      remoteRepoInfoPromise: Promise.resolve({
-        path: repoPath,
-        hasUncommittedChanges,
-        headHash,
-        rootDisplayCommit,
-      }),
+    // Build relationships
+    commitChildrenMap.forEach((childrenHashes, parentHash) => {
+      const parentCommit = commitHashDict.get(parentHash);
+      if (!parentCommit) {
+        return;
+      }
+      childrenHashes.forEach((childHash) => {
+        const childCommit = commitHashDict.get(childHash)!;
+        childCommit.parentCommits = Array.from(
+          new Set([...childCommit.parentCommits, parentCommit]),
+        );
+        parentCommit.childCommits = Array.from(
+          new Set([...parentCommit.childCommits, childCommit]),
+        );
+      });
     });
 
-    // Const rootDisplayCommit = {
-    //   title: baseCommitLookup.summary(),
-    //   hash: baseCommitLookup.sha(),
-    //   timestamp: baseCommitLookup.timeMs(),
-    //   author: baseCommitLookup.author().toString(),
-    //   branchNames: branchNames,
-    // };
+    // Inject branch names
+    refs.forEach((ref) => {
+      const branchName = ref.name();
+      const branchSha = ref.target().tostrS();
+      commitHashDict.get(branchSha)?.branchNames.push(branchName);
+    });
 
-    // const history = (await repo.getHeadCommit()).history();
-    // const childCommits: nodegit.Commit[] = [];
-    // let child: Boolean = true;
-    // history.on('commit', (commit: nodegit.Commit) => {
-    //   commitHashDict.set(commit.sha(), commit);
-    //   if (commit.sha() === baseCommitLookup.sha()) {
-    //     child = false;
-    //     return;
-    //   }
-    //   if (child) {
-    //     childCommits.push(commit);
-    //   } else {
-    //     return;
-    //   }
-    // });
-    // history.on('end', async (_: nodegit.Commit[]) => {
-    //   // Checking if any file in the repository has changed
-    // });
+    const hasUncommittedChanges = repoStatus.length > 0;
+    const rootDisplayCommit = commitHashDict.get(
+      commonAncestorCommitOid.tostrS(),
+    )!;
 
-    // history.start();
-  }
+    const ourRepository = {
+      path: repoPath,
+      hasUncommittedChanges,
+      headHash,
+      rootDisplayCommit,
+    };
 
-  async shaToCommit(
-    sha: string,
-    repo: nodegit.Repository,
-    branchName: string,
-  ): Promise<Commit> {
-    const commit = await nodegit.Commit.lookup(repo, sha);
+    const getRemoteRepoInfo = async (): Promise<Repository> => {
+      // Get all commits with local branches
+      const allCommitsWithBranches = Array.from(commitHashDict.values()).filter(
+        (commit) => commit.branchNames.filter(refIsLocal).length !== 0,
+      );
+
+      // Look up PR information for them and inject their information
+      await Promise.all(
+        allCommitsWithBranches.map(async (commit) => {
+          commit.pullRequestInfo = await this.getPullRequestInfo(
+            repoPath,
+            commit.hash,
+            // TODO: Handle commits with multiple PRs
+            commit.branchNames.filter(refIsLocal)[0],
+          );
+        }),
+      );
+
+      return ourRepository;
+    };
+
     return {
-      title: commit.summary(),
-      hash: commit.sha(),
-      timestamp: commit.date(),
-      author: commit.author(),
-      branchNames: [branchName],
-      pullRequestInfo: this.getPullRequestInfo(
-        commit.author().toString(),
-        repo,
-        commit.sha(),
-      ),
-      parentCommits: [],
-      childCommits: [],
+      repo: ourRepository,
+      remoteRepoInfoPromise: getRemoteRepoInfo(),
     };
   }
 
-  getPullRequestInfo(
-    _: string,
-    __: nodegit.Repository,
-    ___: string,
-  ): PullRequestInfo {
-    return {
-      url: "http://www.google.com",
-      shortName: "google",
-      isOutdated: true,
-    };
+  async getPullRequestBranchMap(
+    repoPath: string,
+    owner: string,
+    repo: string,
+  ): Promise<Map<string, PullRequestInfo>> {
+    const octokit = getOctokit(repoPath);
+    const { data } = await octokit.pulls.list({
+      owner,
+      repo,
+    });
+    let pullRequestBranchMap = new Map<string, PullRequestInfo>();
+    data.forEach((pullRequest: any) => {
+      if (!pullRequestBranchMap.has(pullRequest.head.ref)) {
+        let pullRequestInfo = {
+          url: pullRequest.url,
+          title: pullRequest.title,
+          isOutdated: false,
+        };
+        pullRequestBranchMap.set(pullRequest.head.ref, pullRequestInfo);
+      }
+    });
+    return pullRequestBranchMap;
   }
 
-  // Actions
+  async getPullRequestInfo(
+    repoPath: string,
+    commitHash: string,
+    branch: string,
+  ): Promise<PullRequestInfo | undefined> {
+    try {
+      const repoResult = await nodegit.Repository.open(repoPath);
+      // TODO: Handle remotes that are not named "origin"
+      const remoteResult = await repoResult.getRemote("origin");
+      const { owner, repo } = remoteUrlToOwnerAndRepo(remoteResult.url());
+      const octokit = getOctokit(repoPath);
+      let pullRequestInfo: PullRequestInfo | undefined;
+      try {
+        const {
+          data,
+        } = await octokit.repos.listPullRequestsAssociatedWithCommit({
+          owner,
+          repo,
+          commit_sha: commitHash,
+        });
+        return (pullRequestInfo = {
+          title: data[0].title,
+          url: data[0].url,
+          isOutdated: false,
+        });
+      } catch (e) {
+        const pullRequestBranchMap = await this.getPullRequestBranchMap(
+          repoPath,
+          owner,
+          repo,
+        );
+        if (pullRequestBranchMap.has(branch)) {
+          pullRequestInfo = pullRequestBranchMap.get(branch);
+          if (pullRequestInfo !== undefined) {
+            pullRequestInfo.isOutdated = true;
+            return pullRequestInfo;
+          }
+        } else return undefined;
+      }
+    } catch (e) {
+      console.log(e);
+    }
+  }
+
+  //Actions
   async createOrUpdateBranchesForCommitStack(
     repoPath: string,
     commitStack: Commit[],
@@ -333,11 +382,9 @@ export class GitLocal implements NavigatorBackend {
 
     // Get information for octokit.pulls.create()
     const repoResult = await nodegit.Repository.open(repoPath);
+    // TODO: Handle remotes that are not named "origin"
     const remoteResult = await repoResult.getRemote("origin");
-    const remoteURL = await remoteResult.url();
-    // Sample URL: "https://github.com/taneliang/stack-attack"
-    const repoName = remoteURL.split("/").pop() ?? "invalid repo";
-    const owner = remoteURL.split("/")[3];
+    const { owner, repo } = remoteUrlToOwnerAndRepo(remoteResult.url());
     const octokit = getOctokit(repoPath);
     // For each commit/branch in the stack
     for (let i = 0; i < commitStack.length; i++) {
@@ -358,7 +405,7 @@ export class GitLocal implements NavigatorBackend {
       // Create PR for that branch
       await octokit.pulls.create({
         owner,
-        repo: repoName,
+        repo,
         title: commitStack[i].title,
         head: branchName,
         base: baseName, // TODO: ask the user the base
