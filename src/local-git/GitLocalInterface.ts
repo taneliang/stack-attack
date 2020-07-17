@@ -511,10 +511,10 @@ export class GitLocal implements NavigatorBackend {
         //create PR for that branch
         await octokit.pulls.create({
           owner: owner,
-          repo,
+          repo: repo,
           title: commitStack[i].title,
-          head: branchName,
-          base: baseName, //TODO: ask the user the base
+          head: localRefToBranchName(branchName),
+          base: localRefToBranchName(baseName), //TODO: ask the user the base
           body: commitStack[i].title, //TODO: description for PR
           maintainer_can_modify: true,
           // TODO: Uncomment when pushCommitstoRepo is fixed. Commented to get
