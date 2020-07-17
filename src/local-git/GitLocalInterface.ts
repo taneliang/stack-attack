@@ -327,27 +327,19 @@ export class GitLocal implements NavigatorBackend {
 
     // Add temp branch that points to the target commit.
     const tempBranchName = "sttack-temp-cherry-pick-target";
-    const cherryPickTargetRef = await repo.createBranch(
-      tempBranchName,
-      nodegit.Oid.fromString(targetCommit.hash),
-      true,
-    );
 
     // "Rebases" commit stack rooted at `rootCommit` onto `targetCommit`.
     // This loop traverses **stack** from rootCommit to the tip of the stack.
     // TODO: Implement tree rebasing. Currently only rebases a linear stack of commits.
-    // TODO: Fix stack traversal -- it crashes when rebasing a stack
     let originalCommit: Commit | undefined = rootCommit;
+    let targetCommitOid = nodegit.Oid.fromString(targetCommit.hash);
     while (originalCommit) {
       const originalNodegitCommit = await nodegit.Commit.lookup(
         repo,
         nodegit.Oid.fromString(originalCommit.hash),
       );
-      const targetNodegitCommit = await repo.getReferenceCommit(
-        cherryPickTargetRef,
-      );
+      const targetNodegitCommit = await repo.getCommit(targetCommitOid);
 
-      // Cherry pick commit onto dummy branch (our target)
       const index = ((await nodegit.Cherrypick.commit(
         repo,
         originalNodegitCommit,
@@ -357,7 +349,15 @@ export class GitLocal implements NavigatorBackend {
         // Bug in type defs: `commit` returns an Index, not a number.
         // See: https://www.nodegit.org/api/cherrypick/#cherrypick
       )) as unknown) as nodegit.Index;
+
       const tree = await index.writeTreeTo(repo);
+
+      const cherryPickTargetRef = await repo.createBranch(
+        tempBranchName,
+        targetCommitOid,
+        true,
+      );
+
       const newCommitOid = await repo.createCommit(
         cherryPickTargetRef.toString(),
         originalNodegitCommit.author(),
@@ -388,12 +388,12 @@ export class GitLocal implements NavigatorBackend {
         }
       });
 
+      targetCommitOid = newCommitOid;
       originalCommit = originalCommit.childCommits[0];
     }
 
     // Remove temp branch
-    // TODO: Fix this, it doesn't remove the temp branch
-    const status = nodegit.Branch.delete(cherryPickTargetRef);
+    nodegit.Branch.delete(await repo.getBranch(tempBranchName));
 
     // TODO: Abandon this updated-commit strategy and just reload the entire app!
     return rootCommit;
