@@ -6,6 +6,7 @@ import {
 } from "../NavigatorBackendType";
 import nodegit from "nodegit";
 import { getOctokit } from "../github-integration/authentication";
+import fs from "fs";
 
 const localRefPrefix = "refs/heads/";
 
@@ -295,36 +296,98 @@ export class GitLocal implements NavigatorBackend {
     }
     return commitStack;
   }
-
   //Actions: push to the origin repo
-  async pushCommitstoRepo(branchName: string, repoPath: string) {
+  pushCommitstoRepo(branchName: string, repoPath: string) {
+    let repo: nodegit.Repository, remote: nodegit.Remote;
     //Local repo
-    const repo = await nodegit.Repository.open(repoPath);
-    const remote = await repo.getRemote("origin");
-    console.log("Remote loaded");
+    const configFileContents = fs
+      .readFileSync(`${repoPath}/sttack.config.json`)
+      .toString();
+    const {
+      userPublicKeyPath,
+      userPrivateKeyPath,
+      userPassphrase,
+    } = JSON.parse(configFileContents);
+    return nodegit.Repository.open(repoPath)
+      .then(function (repoResult) {
+        repo = repoResult;
+        //get the origin repo
+        return repo.getRemote("origin");
+      })
+      .then(function (remoteResult) {
+        //console.log("Remote loaded");
+        remote = remoteResult;
+        const callback = {
+          credentials: function (_url: string, userName: string) {
+            //console.log("Getting credentials");
+            //   // FIXME: Possible infinite loop when using sshKeyFromAgent
+            //   // See: https://github.com/nodegit/nodegit/issues/1133
+            //   //return nodegit.Cred.sshKeyFromAgent(userName);
+            return nodegit.Cred.sshKeyNew(
+              userName,
+              userPublicKeyPath, //"/Users/phuonganh/.ssh/id_rsa.pub",
+              userPrivateKeyPath, //"/Users/phuonganh/.ssh/id_rsa",
+              userPassphrase, //"hello",
+            );
+            //console.log("Done getting credentials");
+          },
+        };
 
-    await remote.push([`${branchName}:${branchName}`], {
-      callbacks: {
-        credentials(_url: string, userName: string) {
-          console.log("Getting credentials");
-          // FIXME: Possible infinite loop when using sshKeyFromAgent
-          // See: https://github.com/nodegit/nodegit/issues/1133
-
-          // return nodegit.Cred.sshKeyFromAgent(userName);
-          return nodegit.Cred.sshKeyNew(
-            userName,
-            "/home/e-liang/.ssh/github_ed25519.pub",
-            "/home/e-liang/.ssh/github_ed25519",
-            "",
-          );
-        },
-      },
-    });
-
-    // TODO: await nodegit.Branch.setUpstream(branch, upstream_name)
-
-    console.log("Remote Pushed!");
+        //Configure and connect the remote repo
+        return remote.connect(nodegit.Enums.DIRECTION.PUSH, callback);
+      })
+      .then(function () {
+        //console.log("Remote Connected?", remote.connected());
+        return remote.push([`${branchName}:${branchName}`], {
+          callbacks: {
+            credentials: function (_: string, userName: string) {
+              return nodegit.Cred.sshKeyNew(
+                userName,
+                userPublicKeyPath, //"/Users/phuonganh/.ssh/id_rsa.pub",
+                userPrivateKeyPath, //"/Users/phuonganh/.ssh/id_rsa",
+                userPassphrase, //"hello",
+              );
+            },
+          },
+        });
+      })
+      .then(function (status) {
+        //console.log("Remote Pushed!", status);
+      })
+      .catch(function (error) {
+        console.log(error);
+      });
   }
+
+  // //Actions: push to the origin repo
+  // async pushCommitstoRepo(branchName: string, repoPath: string) {
+  //   //Local repo
+  //   const repo = await nodegit.Repository.open(repoPath);
+  //   const remote = await repo.getRemote("origin");
+  //   console.log("Remote loaded");
+
+  //   await remote.push([`${branchName}:${branchName}`], {
+  //     callbacks: {
+  //       credentials(_url: string, userName: string) {
+  //         console.log("Getting credentials");
+  //         // FIXME: Possible infinite loop when using sshKeyFromAgent
+  //         // See: https://github.com/nodegit/nodegit/issues/1133
+
+  //         // return nodegit.Cred.sshKeyFromAgent(userName);
+  //         return nodegit.Cred.sshKeyNew(
+  //           userName,
+  //           "/home/e-liang/.ssh/github_ed25519.pub",
+  //           "/home/e-liang/.ssh/github_ed25519",
+  //           "",
+  //         );
+  //       },
+  //     },
+  //   });
+
+  //   // TODO: await nodegit.Branch.setUpstream(branch, upstream_name)
+
+  //   console.log("Remote Pushed!");
+  // }
 
   rebaseCommits(
     repoPath: string,
