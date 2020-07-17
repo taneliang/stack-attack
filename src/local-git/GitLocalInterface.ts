@@ -197,7 +197,7 @@ export class GitLocal implements NavigatorBackend {
   async getPullRequestInfo(
     repoPath: string,
     commitHash: string,
-    branch: string,
+    localRefName: string,
   ): Promise<PullRequestInfo | undefined> {
     try {
       const repoResult = await nodegit.Repository.open(repoPath);
@@ -225,8 +225,9 @@ export class GitLocal implements NavigatorBackend {
           owner,
           repo,
         });
+        const branchName = localRefToBranchName(localRefName);
         const pullRequestForBranch = data.find(
-          (pullRequest) => pullRequest.head.ref === branch,
+          (pullRequest) => pullRequest.head.ref === branchName,
         );
         if (pullRequestForBranch) {
           return {
