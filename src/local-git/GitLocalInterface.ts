@@ -6,9 +6,13 @@ import {
 } from "../NavigatorBackendType";
 import nodegit from "nodegit";
 import { getOctokit } from "../github-integration/authentication";
+import { v4 as uuidv4 } from "uuid";
+import fs from "fs";
+
+const localRefPrefix = "refs/heads/";
 
 function refIsLocal(refString: string) {
-  return refString.startsWith("refs/heads/");
+  return refString.startsWith(localRefPrefix);
 }
 
 function localRefToBranchName(refString: string) {
@@ -242,31 +246,54 @@ export class GitLocal implements NavigatorBackend {
     }
   }
 
-  //Actions
+  //Actions: create new branch for each commit that don't have an existing "feature/new-branch" branch
   async createOrUpdateBranchesForCommitStack(
     repoPath: string,
     commitStack: Commit[],
   ): Promise<Commit[]> {
+    // TODO: Get from user
+    const stackBranchBaseName = uuidv4().substr(0, 5); // "feature/new-branch";
+    const stackBranchNamePrefix = `${stackBranchBaseName}-`;
+
     const repo = await nodegit.Repository.open(repoPath);
+    //assume we're operating on the entire stack
     for (let i = 0; i < commitStack.length; i++) {
-      const commitMessage = "feature/new-branch"; // TODO: get the branch name from user
-      const newBranchName = `${commitMessage}-${i}`; // Branch name is "commit message-branch number"
-      commitStack[i].branchNames.push(newBranchName);
-      const commitTarget = await nodegit.Commit.lookup(
-        repo,
-        commitStack[i].hash,
-      );
-      await nodegit.Branch.create(repo, newBranchName, commitTarget, 1);
+      //Example: ["refs/heads/origin/master", "refs/heads/feature/new-branch-1"];
+      //if the commit has a branch "refs/heads/feature/new-branch-", don't create a new branch
+      if (commitStack[i].branchNames.length > 0) {
+        let skip = false;
+        for (let j = 0; j < commitStack[i].branchNames.length; j++) {
+          if (
+            commitStack[i].branchNames[j].startsWith(
+              `${localRefPrefix}${stackBranchNamePrefix}`,
+            )
+          ) {
+            skip = true;
+            break;
+          }
+        }
+        if (skip) continue;
+      }
+      //else: create a new branch
+      const newBranchName = `${stackBranchNamePrefix}${i}`;
+      commitStack[i].branchNames.push(`${localRefPrefix}${newBranchName}`);
+      await repo.createBranch(newBranchName, commitStack[i].hash, true);
     }
 
     return commitStack;
   }
-
-  // Actions: push to the origin repo
+  //Actions: push to the origin repo
   pushCommitstoRepo(branchName: string, repoPath: string) {
-    let repo: nodegit.Repository;
-    let remote: nodegit.Remote;
-    // Local repo
+    let repo: nodegit.Repository, remote: nodegit.Remote;
+    //Local repo
+    const configFileContents = fs
+      .readFileSync(`${repoPath}/sttack.config.json`)
+      .toString();
+    const {
+      userPublicKeyPath,
+      userPrivateKeyPath,
+      userPassphrase,
+    } = JSON.parse(configFileContents);
     return nodegit.Repository.open(repoPath)
       .then(function (repoResult) {
         repo = repoResult;
@@ -274,29 +301,79 @@ export class GitLocal implements NavigatorBackend {
         return repo.getRemote("origin");
       })
       .then(function (remoteResult) {
-        console.log("Remote loaded");
+        //console.log("Remote loaded");
         remote = remoteResult;
+        const callback = {
+          credentials: function (_url: string, userName: string) {
+            //console.log("Getting credentials");
+            //   // FIXME: Possible infinite loop when using sshKeyFromAgent
+            //   // See: https://github.com/nodegit/nodegit/issues/1133
+            //   //return nodegit.Cred.sshKeyFromAgent(userName);
+            return nodegit.Cred.sshKeyNew(
+              userName,
+              userPublicKeyPath, //"/Users/phuonganh/.ssh/id_rsa.pub",
+              userPrivateKeyPath, //"/Users/phuonganh/.ssh/id_rsa",
+              userPassphrase, //"hello",
+            );
+            //console.log("Done getting credentials");
+          },
+        };
 
-        // Configure and connect the remote repo
-        return remote.connect(nodegit.Enums.DIRECTION.PUSH, {
-          credentials(userName: string) {
-            return nodegit.Cred.sshKeyFromAgent(userName);
+        //Configure and connect the remote repo
+        return remote.connect(nodegit.Enums.DIRECTION.PUSH, callback);
+      })
+      .then(function () {
+        //console.log("Remote Connected?", remote.connected());
+        return remote.push([`${branchName}:${branchName}`], {
+          callbacks: {
+            credentials: function (_: string, userName: string) {
+              return nodegit.Cred.sshKeyNew(
+                userName,
+                userPublicKeyPath, //"/Users/phuonganh/.ssh/id_rsa.pub",
+                userPrivateKeyPath, //"/Users/phuonganh/.ssh/id_rsa",
+                userPassphrase, //"hello",
+              );
+            },
           },
         });
       })
-      .then(function () {
-        console.log("Remote Connected?", remote.connected());
-        return remote.push([
-          `refs/heads/${branchName}:refs/heads/${branchName}`,
-        ]);
-      })
-      .then(function () {
-        console.log("Remote Pushed!");
+      .then(function (status) {
+        //console.log("Remote Pushed!", status);
       })
       .catch(function (error) {
         console.log(error);
       });
   }
+
+  // //Actions: push to the origin repo
+  // async pushCommitstoRepo(branchName: string, repoPath: string) {
+  //   //Local repo
+  //   const repo = await nodegit.Repository.open(repoPath);
+  //   const remote = await repo.getRemote("origin");
+  //   console.log("Remote loaded");
+
+  //   await remote.push([`${branchName}:${branchName}`], {
+  //     callbacks: {
+  //       credentials(_url: string, userName: string) {
+  //         console.log("Getting credentials");
+  //         // FIXME: Possible infinite loop when using sshKeyFromAgent
+  //         // See: https://github.com/nodegit/nodegit/issues/1133
+
+  //         // return nodegit.Cred.sshKeyFromAgent(userName);
+  //         return nodegit.Cred.sshKeyNew(
+  //           userName,
+  //           "/home/e-liang/.ssh/github_ed25519.pub",
+  //           "/home/e-liang/.ssh/github_ed25519",
+  //           "",
+  //         );
+  //       },
+  //     },
+  //   });
+
+  //   // TODO: await nodegit.Branch.setUpstream(branch, upstream_name)
+
+  //   console.log("Remote Pushed!");
+  // }
 
   async rebaseCommits(
     repoPath: string,
@@ -382,13 +459,12 @@ export class GitLocal implements NavigatorBackend {
   amendAndRebaseDependentTree(repoPath: string): Promise<Commit> {
     return Promise.reject("NOT IMPLEMENTED");
   }
-
-  // Octokit.pulls.create({owner, repo, title, head, base, body, maintainer_can_modify, draft});
+  //Actions: create or update PRs for commits
   async createOrUpdatePRsForCommits(
     repoPath: string,
     commitStack: Commit[],
   ): Promise<Commit[]> {
-    // Create branch for each commit
+    //CREATE OR UPDATE BRANCH for each commit
     commitStack = await this.createOrUpdateBranchesForCommitStack(
       repoPath,
       commitStack,
@@ -400,34 +476,110 @@ export class GitLocal implements NavigatorBackend {
     const remoteResult = await repoResult.getRemote("origin");
     const { owner, repo } = remoteUrlToOwnerAndRepo(remoteResult.url());
     const octokit = getOctokit(repoPath);
-    // For each commit/branch in the stack
+
+    //for each commit/branch in the stack
     for (let i = 0; i < commitStack.length; i++) {
       const lastIndex = commitStack[i].branchNames.length - 1;
       const branchName = commitStack[i].branchNames[lastIndex];
 
-      // Push the commits to that branch on the remote repository
+      //PUSH the commits to that branch on the remote repository
       await this.pushCommitstoRepo(branchName, repoPath);
 
-      // Find the base branch
-      let baseName: string;
-      if (i === 0) baseName = "master";
-      else {
-        const lastIndexofLastCommit = commitStack[i - 1].branchNames.length - 1;
-        baseName = commitStack[i - 1].branchNames[lastIndexofLastCommit];
-      }
+      //CREATE OR UPDATE PR for each branch
+      /* find which branch has an existing PR
+       * create PR for other branches
+       * update description for every branch
+       */
 
-      // Create PR for that branch
-      await octokit.pulls.create({
-        owner,
+      //If the branch has an existing PR, don't create one
+      const getPR = await octokit.pulls.list({
+        owner: owner,
         repo,
-        title: commitStack[i].title,
-        head: branchName,
-        base: baseName, // TODO: ask the user the base
-        body: commitStack[i].title, // TODO: description for PR
-        maintainer_can_modify: true,
-        draft: true, // Draft PR default
+        head: `${owner}:${branchName}`,
       });
+      if (getPR.data.length !== 0) {
+      }
+      //Else if the branch doesn't have an existing PR, create one
+      else {
+        //find the base branch
+        let baseName: string;
+        if (i === 0) baseName = "master";
+        else {
+          const lastIndexofLastCommit =
+            commitStack[i - 1].branchNames.length - 1;
+          baseName = commitStack[i - 1].branchNames[lastIndexofLastCommit];
+        }
+
+        //create PR for that branch
+        await octokit.pulls.create({
+          owner: owner,
+          repo: repo,
+          title: commitStack[i].title,
+          head: localRefToBranchName(branchName),
+          base: localRefToBranchName(baseName), //TODO: ask the user the base
+          body: commitStack[i].title, //TODO: description for PR
+          maintainer_can_modify: true,
+          // TODO: Uncomment when pushCommitstoRepo is fixed. Commented to get
+          // around a misleading error from GitHub
+          // draft: true, //draft PR default
+        });
+      }
     }
+
+    // Get list of PRs
+    const pullRequests = await Promise.all(
+      commitStack
+        .filter(({ branchNames }) => !!branchNames.find(refIsLocal))
+        .map(async ({ branchNames }) => {
+          const lastIndex = branchNames.length - 1;
+          const branchName = branchNames[lastIndex];
+          const prList = await octokit.pulls.list({
+            owner: owner,
+            repo,
+            head: `${owner}:${branchName}`,
+          });
+          // Assume that all commits in commitStack already have a PR, since we've
+          // just created it above.
+          return prList.data[0]!;
+        }),
+    );
+
+    // let prNumberArr = [];
+    // for (let i = 0; i < commitStack.length; i++) {
+    //   const lastIndex = commitStack[i].branchNames.length - 1;
+    //   const branchName = commitStack[i].branchNames[lastIndex];
+    //   const prList = await octokit.pulls.list({
+    //     owner: owner,
+    //     repo: repoName,
+    //     head: `${owner}:${branchName}`,
+    //   });
+    //   const prSingle = prList.data.pop();
+    //   const prNumber = prSingle?.number;
+    //   const prTitle = prSingle?.title;
+    //   prNumberArr.push(prNumber);
+    // }
+
+    // Update PR descriptions
+    await Promise.all(
+      pullRequests.map((pullRequest, prIndex) => {
+        let description =
+          "Stack PR by [STACK ATTACK](https://github.com/taneliang/stack-attack):\n";
+        // Assume pullRequests and commitStack have the same length
+        description += pullRequests
+          .map(({ number, title }, indexOfDescriptionPr) => {
+            const starsOrNone = prIndex === indexOfDescriptionPr ? "**" : "";
+            return `- ${starsOrNone}#${number} ${title}${starsOrNone}`;
+          })
+          .join("\n");
+
+        return octokit.pulls.update({
+          owner: owner,
+          repo,
+          pull_number: pullRequest.number,
+          body: description,
+        });
+      }),
+    );
 
     return commitStack;
   }
