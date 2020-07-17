@@ -7,6 +7,29 @@ import {
 import nodegit from "nodegit";
 import { getOctokit } from "../github-integration/authentication";
 
+function refIsLocal(refString: string) {
+  return refString.startsWith("refs/heads/");
+}
+
+function remoteUrlToOwnerAndRepo(
+  remoteUrl: string,
+): { owner: string; repo: string } {
+  // Sample URLs:
+  // "https://github.com/taneliang/stack-attack"
+  // "git@github.com:taneliang/stack-attack.git"
+  // "git@github.com:taneliang/hello.world"
+  // TODO: Check if an owner/repo can contain "/" or ":"
+  const [rawRepo, owner] = remoteUrl
+    .split("/")
+    .flatMap((s) => s.split(":"))
+    .reverse();
+  // TODO: Check if it's possible for a repo name to end with ".git"
+  const repo = rawRepo.endsWith(".git")
+    ? rawRepo.substr(0, rawRepo.length - 4)
+    : rawRepo;
+  return { owner, repo };
+}
+
 export class GitLocal implements NavigatorBackend {
   async getRepositoryInformation(
     repoPath: string,
@@ -76,11 +99,6 @@ export class GitLocal implements NavigatorBackend {
               timestamp: nodegitCommit.date(),
               author: nodegitCommit.author(),
               branchNames: [],
-              pullRequestInfo: this.getPullRequestInfo(
-                nodegitCommit.author().toString(),
-                repo,
-                nodegitCommit.sha(),
-              ),
               parentCommits: [],
               childCommits: [],
             };
@@ -138,32 +156,104 @@ export class GitLocal implements NavigatorBackend {
       commonAncestorCommitOid.tostrS(),
     )!;
 
+    const ourRepository = {
+      path: repoPath,
+      hasUncommittedChanges,
+      headHash,
+      rootDisplayCommit,
+    };
+
+    const getRemoteRepoInfo = async (): Promise<Repository> => {
+      // Get all commits with local branches
+      const allCommitsWithBranches = Array.from(commitHashDict.values()).filter(
+        (commit) => commit.branchNames.filter(refIsLocal).length !== 0,
+      );
+
+      // Look up PR information for them and inject their information
+      await Promise.all(
+        allCommitsWithBranches.map(async (commit) => {
+          commit.pullRequestInfo = await this.getPullRequestInfo(
+            repoPath,
+            commit.hash,
+            // TODO: Handle commits with multiple PRs
+            commit.branchNames.filter(refIsLocal)[0],
+          );
+        }),
+      );
+
+      return ourRepository;
+    };
+
     return {
-      repo: {
-        path: repoPath,
-        hasUncommittedChanges,
-        headHash,
-        rootDisplayCommit,
-      },
-      remoteRepoInfoPromise: Promise.resolve({
-        path: repoPath,
-        hasUncommittedChanges,
-        headHash,
-        rootDisplayCommit,
-      }),
+      repo: ourRepository,
+      remoteRepoInfoPromise: getRemoteRepoInfo(),
     };
   }
 
-  getPullRequestInfo(
-    _: string,
-    __: nodegit.Repository,
-    ___: string,
-  ): PullRequestInfo {
-    return {
-      url: "http://www.google.com",
-      shortName: "google",
-      isOutdated: true,
-    };
+  async getPullRequestBranchMap(
+    repoPath: string,
+    owner: string,
+    repo: string,
+  ): Promise<Map<string, PullRequestInfo>> {
+    const octokit = getOctokit(repoPath);
+    const { data } = await octokit.pulls.list({
+      owner,
+      repo,
+    });
+    let pullRequestBranchMap = new Map<string, PullRequestInfo>();
+    data.forEach((pullRequest: any) => {
+      if (!pullRequestBranchMap.has(pullRequest.head.ref)) {
+        let pullRequestInfo = {
+          url: pullRequest.url,
+          title: pullRequest.title,
+          isOutdated: false,
+        };
+        pullRequestBranchMap.set(pullRequest.head.ref, pullRequestInfo);
+      }
+    });
+    return pullRequestBranchMap;
+  }
+
+  async getPullRequestInfo(
+    repoPath: string,
+    commitHash: string,
+    branch: string,
+  ): Promise<PullRequestInfo | undefined> {
+    try{ 
+      const repoResult = await nodegit.Repository.open(repoPath);
+      // TODO: Handle remotes that are not named "origin"
+      const remoteResult = await repoResult.getRemote("origin");
+      const { owner, repo } = remoteUrlToOwnerAndRepo(remoteResult.url());
+      const octokit = getOctokit(repoPath);
+      let pullRequestInfo : PullRequestInfo | undefined;
+       try{
+      const { data } = await octokit.repos.listPullRequestsAssociatedWithCommit({
+        owner,
+        repo,
+        commit_sha: commitHash,
+      });
+      return pullRequestInfo = {
+        title: data[0].title,
+        url: data[0].url,
+        isOutdated: false,
+      };
+    } catch(e){ 
+      const pullRequestBranchMap = await this.getPullRequestBranchMap(
+        repoPath,
+        owner,
+        repo,
+      );
+      if (pullRequestBranchMap.has(branch)) {
+        pullRequestInfo = pullRequestBranchMap.get(branch);
+        if (pullRequestInfo !== undefined) {
+          pullRequestInfo.isOutdated = true;
+          return pullRequestInfo;
+        }
+      } else return undefined;
+    }
+    } catch(e) { 
+      console.log(e);
+    }
   }
 
   //Actions
@@ -242,11 +332,9 @@ export class GitLocal implements NavigatorBackend {
 
     //get information for octokit.pulls.create()
     const repoResult = await nodegit.Repository.open(repoPath);
+    // TODO: Handle remotes that are not named "origin"
     const remoteResult = await repoResult.getRemote("origin");
-    const remoteURL = await remoteResult.url();
-    //sample URL: "https://github.com/taneliang/stack-attack"
-    const repoName = remoteURL.split("/").pop() ?? "invalid repo";
-    const owner = remoteURL.split("/")[3];
+    const { owner, repo } = remoteUrlToOwnerAndRepo(remoteResult.url());
     const octokit = getOctokit(repoPath);
     //for each commit/branch in the stack
     for (let i = 0; i < commitStack.length; i++) {
@@ -265,8 +353,8 @@ export class GitLocal implements NavigatorBackend {
       }
       //create PR for that branch
       await octokit.pulls.create({
-        owner: owner,
-        repo: repoName,
+        owner,
+        repo,
         title: commitStack[i].title,
         head: branchName,
         base: baseName, //TODO: ask the user the base
