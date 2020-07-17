@@ -303,16 +303,26 @@ export class GitLocal implements NavigatorBackend {
     const remote = await repo.getRemote("origin");
     console.log("Remote loaded");
 
-    await remote.push(
-      [`${localRefPrefix}${branchName}:${localRefPrefix}${branchName}`],
-      {
-        callbacks: {
-          credentials: function (_url: string, userName: string) {
-            return nodegit.Cred.sshKeyFromAgent(userName);
-          },
+    await remote.push([`${branchName}:${branchName}`], {
+      callbacks: {
+        credentials(_url: string, userName: string) {
+          console.log("Getting credentials");
+          // FIXME: Possible infinite loop when using sshKeyFromAgent
+          // See: https://github.com/nodegit/nodegit/issues/1133
+
+          // return nodegit.Cred.sshKeyFromAgent(userName);
+          return nodegit.Cred.sshKeyNew(
+            userName,
+            "/home/e-liang/.ssh/github_ed25519.pub",
+            "/home/e-liang/.ssh/github_ed25519",
+            "",
+          );
         },
       },
-    );
+    });
+
+    // TODO: await nodegit.Branch.setUpstream(branch, upstream_name)
+
     console.log("Remote Pushed!");
   }
 
@@ -385,7 +395,9 @@ export class GitLocal implements NavigatorBackend {
           base: baseName, //TODO: ask the user the base
           body: commitStack[i].title, //TODO: description for PR
           maintainer_can_modify: true,
-          draft: true, //draft PR default
+          // TODO: Uncomment when pushCommitstoRepo is fixed. Commented to get
+          // around a misleading error from GitHub
+          // draft: true, //draft PR default
         });
       }
     }
