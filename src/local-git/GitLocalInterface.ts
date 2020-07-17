@@ -194,34 +194,10 @@ export class GitLocal implements NavigatorBackend {
     };
   }
 
-  async getPullRequestBranchMap(
-    repoPath: string,
-    owner: string,
-    repo: string,
-  ): Promise<Map<string, PullRequestInfo>> {
-    const octokit = getOctokit(repoPath);
-    const { data } = await octokit.pulls.list({
-      owner,
-      repo,
-    });
-    let pullRequestBranchMap = new Map<string, PullRequestInfo>();
-    data.forEach((pullRequest: any) => {
-      if (!pullRequestBranchMap.has(pullRequest.head.ref)) {
-        let pullRequestInfo = {
-          url: pullRequest.url,
-          title: pullRequest.title,
-          isOutdated: false,
-        };
-        pullRequestBranchMap.set(pullRequest.head.ref, pullRequestInfo);
-      }
-    });
-    return pullRequestBranchMap;
-  }
-
   async getPullRequestInfo(
     repoPath: string,
     commitHash: string,
-    branch: string,
+    localRefName: string,
   ): Promise<PullRequestInfo | undefined> {
     try {
       const repoResult = await nodegit.Repository.open(repoPath);
@@ -229,7 +205,7 @@ export class GitLocal implements NavigatorBackend {
       const remoteResult = await repoResult.getRemote("origin");
       const { owner, repo } = remoteUrlToOwnerAndRepo(remoteResult.url());
       const octokit = getOctokit(repoPath);
-      let pullRequestInfo: PullRequestInfo | undefined;
+
       try {
         const {
           data,
@@ -238,24 +214,28 @@ export class GitLocal implements NavigatorBackend {
           repo,
           commit_sha: commitHash,
         });
-        return (pullRequestInfo = {
-          title: data[0].title,
-          url: data[0].url,
-          isOutdated: false,
-        });
+        const pullRequestForCommit = data[0];
+        return {
+          title: pullRequestForCommit.title,
+          url: pullRequestForCommit.url,
+          isOutdated: pullRequestForCommit.head.sha !== commitHash,
+        };
       } catch (e) {
-        const pullRequestBranchMap = await this.getPullRequestBranchMap(
-          repoPath,
+        const { data } = await octokit.pulls.list({
           owner,
           repo,
+        });
+        const branchName = localRefToBranchName(localRefName);
+        const pullRequestForBranch = data.find(
+          (pullRequest) => pullRequest.head.ref === branchName,
         );
-        if (pullRequestBranchMap.has(branch)) {
-          pullRequestInfo = pullRequestBranchMap.get(branch);
-          if (pullRequestInfo !== undefined) {
-            pullRequestInfo.isOutdated = true;
-            return pullRequestInfo;
-          }
-        } else return undefined;
+        if (pullRequestForBranch) {
+          return {
+            url: pullRequestForBranch.url,
+            title: pullRequestForBranch.title,
+            isOutdated: pullRequestForBranch.head.sha !== commitHash,
+          };
+        }
       }
     } catch (e) {
       console.log(e);
