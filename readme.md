@@ -1,44 +1,197 @@
 # Stack Attack
 
-Stack Attack is a CLI tool that helps you manage your GitHub repo and makes stacking PRs a piece of cake.
+Stack Attack is a CLI tool that helps you work with stacked pull requests.
+Stacking PRs is now ~~a piece~~ many small pieces of cake.
+
+[![Hackathon demo video](https://img.youtube.com/vi/pLGN2sMuC0w/0.jpg)](https://www.youtube.com/watch?v=pLGN2sMuC0w)
+
+## Problem
+
+Although big PRs are common in the GitHub ecosystem, there are many problems
+with them:
+
+- Big PRs are hard to review as it is hard to follow the many logic changes in a
+  large diff. As the code review process is not going to be as effective, there
+  is a higher chance that bugs get merged and deployed into production.
+- Big PRs take some time to write, potentially causing integration issues both
+  on the base branch and in the PR as the project evolves around it.
+
+Are small PRs the solution? YES.
+
+However, small PRs are difficult to deal with on GitHub. Some issues include:
+
+- Small PRs result in a faster PR cadence. Without an easy and systematic way to
+  build PRs on each other (while the PR author waits for a PR review) and manage
+  their dependencies, the PRs quickly become unmanageable.
+- Updates to earlier PRs or the base branch will require many individual rebases
+  of every PR in the dependency stack.
+
+## Stacked PRs?
+
+Instead of implementing a feature in a single large PR, Stack Attack lets you
+build a feature incrementally in a stack of PRs. Stack Attack helps you to
+create, manipulate, and land these PR stacks.
+
+![Many stacked PRs](https://media1.tenor.com/images/aa3feae71763c6940c95a4359aa138a1/tenor.gif?itemid=17637077)
+
+Stack Attack is inspired by Facebook's internal source management and IDE GUI
+tools, and implements their workflow for everyone else.
+
+### Principles
+
+- **A stacked PR has exactly one commit.** A commit can only get to a certain
+  size before it gets confusing and unmanageable to even you. This is a good
+  thing -- if it's too big for you, splitting a large diff into multiple commits
+  solves the problem for you but not for the reviewer.
+- **A stacked PR implements one small thing completely.** When a PR has a
+  single, well-defined goal, code reviewers can more easily review your code,
+  allowing you to land your code faster.
+- **A stacked PR is fully functional and only depends on its base branch and
+  other PRs stacked below it.** In other words, a partial PR stack should be
+  able to be landed without breaking the base branch. This allows early PRs in
+  the PR stack to be landed while work on their dependent PRs continue, allowing
+  all developers to detect integration issues early.
+
+  ![Weaving PR stacks onto master](https://media0.giphy.com/media/5tvPv8Apl0b1SOrDo9/giphy.gif)
+
+## Usage
+
+1. Clone this repository.
+1. Run `yarn` to install our dependencies.
+1. Add a `<repo_path>/sttack.config.json` file, where `<repo_path>` is the local
+   path to the repository you want to run Stack Attack on. The config file
+   should contain the following:
+
+   ```jsonc
+   {
+     "personalAccessToken": "<your GitHub personal access token>",
+
+     // Provide an SSH key so that we can push your code to GitHub.
+     "userPublicKeyPath": "<absolute path to your SSH public key>", // e.g.: /Users/phuonganh/.ssh/id_rsa.pub
+     "userPrivateKeyPath": "<absolute path to your SSH private key>", // e.g.: /Users/phuonganh/.ssh/id_rsa"
+     "userPassphrase": "<SSH key passphrase>" // Leave empty if no passphrase
+   }
+   ```
+
+   Note: You can generate a GitHub personal access token
+   [here](https://github.com/settings/tokens).
+
+1. Run `yarn cli <repo_path>` to start Stack Attack.
+
+### General Tips
+
+1. Roughly plan your implementation steps before starting to code. It is much
+   harder to split a completed feature into a PR stack than to incrementally
+   build a PR stack.
+1. Create and land PRs frequently to get early reviewer feedback. You'll want to
+   minimize the chance of having to update a PR early in the stack and facing
+   conflicts when rebasing higher PRs in the stack.
+1. Review PRs starting from the base of the stack. When working with a large PR
+   stack, it can be frustrating to have all PRs approved except for the very
+   first one, blocking the entire stack from being landed.
+1. New code can be isolated from existing code by working behind a feature flag.
+
+### Workflows
+
+Below are some common workflows that Stack Attack supports.
+
+As Stack Attack is in an early phase of development, many essential features are
+not yet implemented. Nevertheless, to communicate our vision for Stack Attack,
+we've listed these unimplemented workflows together with those that are
+implemented. Please reach out if you'd like to help make them a reality!
+
+#### Creating a PR stack
+
+1. Navigate to the base of the commit stack.
+1. Press `s` to create the PR stack.
+
+![Create stack UI](resources/create-stack-ui.png)
+
+A PR will be created for each commit in the stack. These PRs are based on each
+other.
+
+#### Navigating a PR stack on GitHub
+
+Every PR references other PRs in the the same stack, with bold text telling you
+where you are in the stack.
+
+[![Stacked PRs](resources/navigate-stack-prs.png)](https://github.com/taneliang/stack-attack-test/pull/1)
+
+Protip: Use commit naming conventions to help you identify the bigger feature
+the stack is building towards. At Facebook, Diffs belonging to stacks are often
+numbered. Here are some common patterns:
+
+- `[<large feature name>][<PR number in the stack>/<total number of PRs in the stack, or just "n">] <commit title>`
+- `<large feature name> (<PR number in the stack>/<total number of PRs in the stack, or just "n">): <commit title>`
+- `<large feature name> (Part <PR number in the stack>)`
+
+Some examples of such numbered commits:
+
+- [Input form redesign][1/n] Create new fork of existing code
+- V2 data migration (3/n): Remove V1 types
+- Add type annotations (Part 1)
+
+[![A stack of PRs](resources/stack-naming.png)](https://github.com/MLH-Fellowship/scheduling-profiler-prototype/pull/31)
+
+#### Rebasing commits belonging to a PR stack
+
+In a manually-managed PR stack, rebasing is extremely tedious. Because every PR
+requires its own branch, rebasing the stack requires you to rebase every branch
+in the PR stack.
+
+Stack Attack allows us to rebase a stack of commits in just a few keyboard
+commands.
+
+![Rebasing a stack of PRs](resources/rebase-stack-ui.png)
+
+1. Navigate to the base of the commit stack.
+1. Press `r` to begin rebasing.
+1. Navigate to the target commit you want to rebase the commit stack on.
+1. Press `c` to confirm the rebase.
+1. (Envisioned) If PRs have already been created for the previous commits, press
+   `s` to update the PRs in the PR stack.
+
+#### Amending PRs in a PR stack (envisioned)
+
+1. Checkout the commit to be amended.
+1. Make your changes.
+1. In Stack Attack, press `a` to amend the commit. All the commits stacked on
+   top of it will be rebased onto the new commit.
+1. (Envisioned) If PRs have already been created for the previous commits, press
+   `s` to make a new PR for the PR stack.
+
+#### Adding PRs on top of an existing PR stack (envisioned)
+
+1. Create the new commit at the top of the commit stack using your regular Git
+   tools.
+1. In Stack Attack, navigate to the new commit.
+1. Press `s` to make a new PR for the commit.
+
+#### Inserting a new PR into an existing PR stack (envisioned)
+
+1. Check out to a commit.
+1. Create the new commit at the top of the commit stack using your regular Git
+   tools.
+1. In Stack Attack, navigate to the new commit.
+1. Press `s` to make a new PR for the commit.
+
+#### Landing a complete PR stack (envisioned)
+
+TODO
+
+#### Landing part of a PR stack (envisioned)
+
+TODO
 
 ## Inspiration
 
-It is mildly annoying how the cascading commits hamper workflow and we wanted to build a tool that can merge and rebase all of these commits on the branch/commit one desires. As a team, we like to follow the ideologies that PR should _NOT_ be big. But we understand that Big PRs are hard to break into small ones since they need to depend on each other. Also updates to earlier PRs or the base branch would require A LOT of individual rebases of every PR in the dependecy stack. To take this headache away from you, we now introduce _Stack Attack_.
-
-## Prerequisites
-
-- Node.js
-- Yarn
-- A repo to work hack on
-
-## How to Use It
-
-1. Clone this repo
-2. Add a `sttack.config.json` file with the following format:
-
-```{
-  "personalAccessToken": "enter your github personal token",
-  "userPublicKeyPath": "enter path to your public key, eg: /Users/phuonganh/.ssh/id_rsa.pub",
-  "userPrivateKeyPath": "enter path to your private key, eg: /Users/phuonganh/.ssh/id_rsa",
-  "userPassphrase": "enter your passphrase"
-}
-```
-
-Note: If you do not have a GitHub token, you can create one following [this](https://github.com/settings/tokens)
-
-3. Run `yarn install`
-4. Run `yarn cli <repo_path>` where `repo_path` is the local repository path.
-
-## Features 
-
-### Rebase 
-
-### PR Stack 
+- Facebook’s internal Diff stacks.
+- https://github.com/ezyang/ghstack
 
 ## Built With
 
-- [Nodejs](https://nodejs.org/en/) :computer: - A JavaScript runtime built on Chrome's V8 JavaScript engine.
+- [Nodejs](https://nodejs.org/en/) :computer: - A JavaScript runtime built on
+  Chrome's V8 JavaScript engine.
 - [Git](https://www.git-scm.com/doc) :smile: - Version Control Management
 - [Typescript](https://www.typescriptlang.org/) :heart: - Semantics
 
