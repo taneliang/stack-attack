@@ -43,7 +43,7 @@ tools, and implements their workflow for everyone else.
 
 - **A stacked PR has exactly one commit.** A commit can only get to a certain
   size before it gets confusing and unmanageable to even you. This is a good
-  thing – if it's too big for you, splitting a large diff into multiple commits
+  thing – if a diff is too big for you, splitting it into multiple commits
   solves the problem for you but not for the reviewer.
 - **A stacked PR implements one small thing completely.** When a PR has a
   single, well-defined goal, code reviewers can more easily review your code,
@@ -64,8 +64,19 @@ tools, and implements their workflow for everyone else.
   stack will also likely not be seen or remembered by those reviewing later PRs.
   These can be mitigated by moving high level discussions to other tools such as
   GitHub Issues.
+- Reviewers can no longer consider a PR individually, but they have to also
+  consider the changes in later PRs stacked on top of it. If done inefficiently,
+  this can lead to unnecessary comments on earlier PRs that already have
+  solutions in later PRs, or long review processes that review the stack as a
+  whole (and defeating the point of using stacked PRs). This can be mitigated by
+  the following:
+  - Adding TODO comments in earlier PRs where later code is expected to go.
+  - Clearly defining the scope of the PR in its description.
+  - Highlighting known issues and plans to fix them.
 - Rebase conflicts are still a thing. This can be mitigated by reviewing PRs
-  promptly and landing them frequently.
+  promptly and landing PRs frequently. Project maintainers may also consider
+  allowing contributors to address review comments in a new PR on top of the
+  stack.
 - Stack Attack only works with Git and GitHub. (Sorry!)
 
 ### Non-goals
