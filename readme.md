@@ -3,6 +3,8 @@
 Stack Attack is a CLI tool that helps you work with stacked pull requests.
 Stacking PRs is now ~~a piece~~ many small pieces of cake.
 
+Demo video:
+
 [![Hackathon demo video](https://img.youtube.com/vi/pLGN2sMuC0w/0.jpg)](https://www.youtube.com/watch?v=pLGN2sMuC0w)
 
 ## Problem
@@ -29,8 +31,8 @@ However, small PRs are difficult to deal with on GitHub. Some issues include:
 ## Stacked PRs?
 
 Instead of implementing a feature in a single large PR, Stack Attack lets you
-build a feature incrementally in a stack of PRs. Stack Attack helps you to
-create, manipulate, and land these PR stacks.
+build a feature incrementally in a stack of PRs. Specifically, Stack Attack
+helps you to create, manipulate, and land these PR stacks.
 
 ![Many stacked PRs](https://media1.tenor.com/images/aa3feae71763c6940c95a4359aa138a1/tenor.gif?itemid=17637077)
 
@@ -41,7 +43,7 @@ tools, and implements their workflow for everyone else.
 
 - **A stacked PR has exactly one commit.** A commit can only get to a certain
   size before it gets confusing and unmanageable to even you. This is a good
-  thing -- if it's too big for you, splitting a large diff into multiple commits
+  thing – if it's too big for you, splitting a large diff into multiple commits
   solves the problem for you but not for the reviewer.
 - **A stacked PR implements one small thing completely.** When a PR has a
   single, well-defined goal, code reviewers can more easily review your code,
@@ -82,14 +84,17 @@ tools, and implements their workflow for everyone else.
 
 1. Roughly plan your implementation steps before starting to code. It is much
    harder to split a completed feature into a PR stack than to incrementally
-   build a PR stack.
-1. Create and land PRs frequently to get early reviewer feedback. You'll want to
-   minimize the chance of having to update a PR early in the stack and facing
-   conflicts when rebasing higher PRs in the stack.
+   build up a PR stack.
+1. Create and land PRs frequently to get early reviewer feedback. Although you
+   can update a PR early in the stack and rebase later PRs on top of it, you'll
+   still want to minimize the chance of facing conflicts when rebasing.
 1. Review PRs starting from the base of the stack. When working with a large PR
    stack, it can be frustrating to have all PRs approved except for the very
    first one, blocking the entire stack from being landed.
-1. New code can be isolated from existing code by working behind a feature flag.
+1. In many situations, it may help to gate the new code behind a feature flag
+   while it is being worked on. This lets you land incomplete features (e.g. a
+   modal with just placeholder text) safely without breaking the app in
+   production.
 
 ### Workflows
 
@@ -107,19 +112,17 @@ implemented. Please reach out if you'd like to help make them a reality!
 
 ![Create stack UI](resources/create-stack-ui.png)
 
-A PR will be created for each commit in the stack. These PRs are based on each
-other.
+A PR will be created for each commit in the stack.
 
 #### Navigating a PR stack on GitHub
 
-Every PR references other PRs in the the same stack, with bold text telling you
-where you are in the stack.
+Every PR references other PRs in the the same stack.
 
 [![Stacked PRs](resources/navigate-stack-prs.png)](https://github.com/taneliang/stack-attack-test/pull/1)
 
-Protip: Use commit naming conventions to help you identify the bigger feature
-the stack is building towards. At Facebook, Diffs belonging to stacks are often
-numbered. Here are some common patterns:
+**Protip:** Use commit naming conventions to help you identify the bigger
+feature the stack is building towards. At Facebook, Diffs belonging to stacks
+are often numbered. Here are some common patterns:
 
 - `[<large feature name>][<PR number in the stack>/<total number of PRs in the stack, or just "n">] <commit title>`
 - `<large feature name> (<PR number in the stack>/<total number of PRs in the stack, or just "n">): <commit title>`
@@ -131,23 +134,25 @@ Some examples of such numbered commits:
 - V2 data migration (3/n): Remove V1 types
 - Add type annotations (Part 1)
 
+Numbered PRs in the wild:
+
 [![A stack of PRs](resources/stack-naming.png)](https://github.com/MLH-Fellowship/scheduling-profiler-prototype/pull/31)
 
 #### Rebasing commits belonging to a PR stack
 
-In a manually-managed PR stack, rebasing is extremely tedious. Because every PR
-requires its own branch, rebasing the stack requires you to rebase every branch
-in the PR stack.
+In a manually-managed PR stack, rebasing is tedious as every PR's branch needs
+to be rebased individually.
 
-Stack Attack allows us to rebase a stack of commits in just a few keyboard
-commands.
+Stack Attack treats rebasing as a transplanting of a commit tree. As such, with
+Stack Attack, you can rebase a stack of commits in just a few keyboard commands.
 
 ![Rebasing a stack of PRs](resources/rebase-stack-ui.png)
 
-1. Navigate to the base of the commit stack.
+1. Navigate to the base of the commit tree you want to rebase/transplant.
 1. Press `r` to begin rebasing.
 1. Navigate to the target commit you want to rebase the commit stack on.
-1. Press `c` to confirm the rebase.
+1. Press `c` to confirm the rebase. The commits in the stack will be rebased,
+   and all the local branches pointing to them will be moved along.
 1. (Envisioned) If PRs have already been created for the previous commits, press
    `s` to update the PRs in the PR stack.
 
@@ -157,8 +162,8 @@ commands.
 1. Make your changes.
 1. In Stack Attack, press `a` to amend the commit. All the commits stacked on
    top of it will be rebased onto the new commit.
-1. (Envisioned) If PRs have already been created for the previous commits, press
-   `s` to make a new PR for the PR stack.
+1. If PRs have already been created for the previous commits, press `s` to make
+   a new PR for the PR stack.
 
 #### Adding PRs on top of an existing PR stack (envisioned)
 
@@ -169,10 +174,10 @@ commands.
 
 #### Inserting a new PR into an existing PR stack (envisioned)
 
-1. Check out to a commit.
-1. Create the new commit at the top of the commit stack using your regular Git
-   tools.
-1. In Stack Attack, navigate to the new commit.
+1. Checkout a commit you want to build on.
+1. Make your changes, then create a new commit using your regular Git tools.
+1. In Stack Attack, rebase the later commits in the stack onto the new commit.
+1. Navigate to the new commit.
 1. Press `s` to make a new PR for the commit.
 
 #### Landing a complete PR stack (envisioned)
