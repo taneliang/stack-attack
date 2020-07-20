@@ -56,6 +56,24 @@ tools, and implements their workflow for everyone else.
 
   ![Weaving PR stacks onto master](https://media0.giphy.com/media/5tvPv8Apl0b1SOrDo9/giphy.gif)
 
+### Limitations
+
+- As a feature is now implemented across multiple PRs, it can be hard to get an
+  overview of what the PR stack achieves. PRs are also no longer a suitable
+  place for higher level discussions. Discussions that occur in a PR early in a
+  stack will also likely not be seen or remembered by those reviewing later PRs.
+  These can be mitigated by moving high level discussions to other tools such as
+  GitHub Issues.
+- Rebase conflicts are still a thing. This can be mitigated by reviewing PRs
+  promptly and landing them frequently.
+- Stack Attack only works with Git and GitHub. (Sorry!)
+
+### Non-goals
+
+- Stacked PRs do not replace single PRs. There are many good reasons to use
+  single PRs, e.g. for small or automated tasks. What Stack Attack gives you is
+  the additional ability to use stacked PRs when the situation calls for it.
+
 ## Usage
 
 1. Clone this repository.
