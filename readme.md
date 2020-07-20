@@ -224,10 +224,10 @@ TODO
 
 ## Built With
 
-- [Nodejs](https://nodejs.org/en/) :computer: - A JavaScript runtime built on
+- [Node.js](https://nodejs.org/en/) :computer: - A JavaScript runtime built on
   Chrome's V8 JavaScript engine.
 - [Git](https://www.git-scm.com/doc) :smile: - Version Control Management
-- [Typescript](https://www.typescriptlang.org/) :heart: - Semantics
+- [TypeScript](https://www.typescriptlang.org/) :heart: - Semantics
 
 ## Contributors
 
