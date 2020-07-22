@@ -107,14 +107,14 @@ tools, and implements their workflow for everyone else.
    Note: You can generate a GitHub personal access token
    [here](https://github.com/settings/tokens).
 
-1. Run `npx sttack <repo_path>` to start Stack Attack.
+1. Run `npx sttack [repo_path]` to start Stack Attack.
 
 ### From Source
 
 1. Clone this repository.
 1. Run `yarn` to install our dependencies.
 1. Create a `<repo_path>/sttack.config.json` file as above.
-1. Run `yarn cli <repo_path>` to start Stack Attack.
+1. Run `yarn cli [repo_path]` to start Stack Attack.
 
 ### General Tips
 
