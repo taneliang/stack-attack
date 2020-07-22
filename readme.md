@@ -71,8 +71,11 @@ tools, and implements their workflow for everyone else.
   whole (and defeating the point of using stacked PRs). This can be mitigated by
   the following:
   - Adding TODO comments in earlier PRs where later code is expected to go.
-  - Clearly defining the scope of the PR in its description.
-  - Highlighting known issues and plans to fix them.
+  - Defining the scope of a PR in its description.
+  - Describing how later PRs are expected to stack on top of a PR. This includes
+    highlighting known issues/hacks/limitations and plans to address them.
+  - Providing context by linking to relevant discussions/issues in every PR in
+    the stack.
 - Rebase conflicts are still a thing. This can be mitigated by reviewing PRs
   promptly and landing PRs frequently. Project maintainers may also consider
   allowing contributors to address review comments in a new PR on top of the
