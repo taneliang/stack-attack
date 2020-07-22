@@ -87,8 +87,8 @@ tools, and implements their workflow for everyone else.
 
 ## Usage
 
-1. Clone this repository.
-1. Run `yarn` to install our dependencies.
+### From NPM
+
 1. Add a `<repo_path>/sttack.config.json` file, where `<repo_path>` is the local
    path to the repository you want to run Stack Attack on. The config file
    should contain the following:
@@ -107,6 +107,13 @@ tools, and implements their workflow for everyone else.
    Note: You can generate a GitHub personal access token
    [here](https://github.com/settings/tokens).
 
+1. Run `npx sttack <repo_path>` to start Stack Attack.
+
+### From Source
+
+1. Clone this repository.
+1. Run `yarn` to install our dependencies.
+1. Create a `<repo_path>/sttack.config.json` file as above.
 1. Run `yarn cli <repo_path>` to start Stack Attack.
 
 ### General Tips
