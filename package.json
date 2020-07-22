@@ -1,22 +1,21 @@
 {
   "name": "sttack",
+  "description": "A CLI tool that manages stacked pull requests. Using stacked PRs is now (many small) pieces of cake.",
   "version": "0.0.0",
   "license": "MIT",
-  "bin": "cli.js",
+  "bin": "dist/cli/index.js",
   "engines": {
-    "node": ">=8"
+    "node": ">=12.4.0"
   },
   "scripts": {
     "cli": "ts-node ./src/cli/index.ts",
     "cli:watch": "nodemon -I -x ts-node -e ts,tsx ./src/cli/index.ts",
-    "build": "tsc",
+    "clean": "rm -rf dist",
+    "build": "tsc --project tsconfig.dist.json && chmod +x dist/cli/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "xo && jest"
+    "test": "xo && jest",
+    "prepare": "yarn clean && yarn build"
   },
-  "files": [
-    "dist/cli.js",
-    "dist/ui.js"
-  ],
   "dependencies": {
     "@octokit/rest": "^18.0.0",
     "ink": "3.0.0-6",
