@@ -1,10 +1,14 @@
 #!/usr/bin/env node
+
+import type { Repository } from "../shared/types";
+import type { StackerRepositoryUpdateListener } from "../stacker";
+
 import React from "react";
 import { render } from "ink";
 import meow from "meow";
 
 import App from "./App";
-import { GitLocal } from "../local-git/GitLocalInterface";
+import { constructStacker } from "../shared/constructStacker";
 
 const cli = meow(`
 	Usage
@@ -15,10 +19,18 @@ const cli = meow(`
 	  Hello, Jane
 `);
 
-render(
-  React.createElement(App, {
-    // TODO: replace with Git backend
-    backend: new GitLocal(),
-    repoPath: cli.input[0] ?? process.cwd(),
-  }),
-);
+const repoPath = cli.input[0] ?? process.cwd();
+
+let repository: Repository | null = null;
+
+const repositoryUpdateListener: StackerRepositoryUpdateListener = (repo) => {
+  repository = repo;
+};
+const stacker = constructStacker(repoPath, repositoryUpdateListener);
+stacker.loadRepositoryInformation();
+
+function reload() {
+  stacker.loadRepositoryInformation();
+}
+
+render(React.createElement(App, { stacker, repository, reload }));
