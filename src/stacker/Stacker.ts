@@ -1,4 +1,4 @@
-import type { Repository, Commit } from "../shared/types";
+import type { Repository, Commit, CommitHash } from "../shared/types";
 
 export type StackerRepositoryUpdateListener = (repo: Repository) => void;
 
@@ -19,6 +19,11 @@ export interface Stacker {
    * changes.
    */
   loadRepositoryInformation(): void;
+
+  /**
+   * Get a commit by its hash.
+   */
+  getCommitByHash(hash: CommitHash): Promise<Commit | null>;
 
   /**
    * Uproot a commit tree and rebase it onto `targetCommit`.

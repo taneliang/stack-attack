@@ -1,4 +1,4 @@
-import type { Commit, Repository } from "../shared/types";
+import type { Commit, Repository, CommitHash } from "../shared/types";
 import type {
   SourceControl,
   SourceControlRepositoryUpdateListener,
@@ -45,11 +45,12 @@ export class ConcreteStacker implements Stacker {
     // TODO: Implement
   }
 
-  async rebaseCommits(
-    rebaseRootCommit: Commit,
-    targetCommit: Commit,
-  ): Promise<void> {
-    // TODO: Implement
+  getCommitByHash(hash: CommitHash): Promise<Commit | null> {
+    return this.sourceControl.getCommitByHash(hash);
+  }
+
+  rebaseCommits(rebaseRootCommit: Commit, targetCommit: Commit): Promise<void> {
+    return this.sourceControl.rebaseCommits(rebaseRootCommit, targetCommit);
   }
 
   async createOrUpdatePRContentsForSingleCommit(commit: Commit): Promise<void> {

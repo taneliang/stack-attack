@@ -1,4 +1,4 @@
-import type { Repository, Commit } from "../shared/types";
+import type { Repository, Commit, CommitHash } from "../shared/types";
 
 export type SourceControlRepositoryUpdateListener = (repo: Repository) => void;
 
@@ -19,6 +19,20 @@ export interface SourceControl {
    * changes.
    */
   loadRepositoryInformation(): void;
+
+  /**
+   * Get a commit by its unique hash (or a unique prefix of its hash), or null
+   * if one cannot be found.
+   *
+   * For example, if our repository had 2 commits with the hashes "abcdefghi"
+   * and "abcdwxyz":
+   *
+   * - getCommitByHash("abcdefghi") -> Commit with exact hash "abcdefghi"
+   * - getCommitByHash("abcde") -> Commit with hash "abcdefghi"
+   * - getCommitByHash("abcd") -> null, since this prefix is not unique
+   * - getCommitByHash("a") -> null
+   */
+  getCommitByHash(hash: CommitHash): Promise<Commit | null>;
 
   /**
    * Uproot a commit tree and rebase it onto `targetCommit`.
