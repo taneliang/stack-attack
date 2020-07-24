@@ -1,14 +1,6 @@
-import { Repository, Commit } from "../shared/types";
+import type { Repository, Commit } from "../shared/types";
 
-type SourceControlRepositoryUpdateListener = (repo: Repository) => void;
-
-// /**
-//  * @param repoPath Path to repository root.
-//  */
-// constructor(
-//   repoPath: string,
-//   repositoryUpdateListener: SourceControlRepositoryUpdateListener,
-// ): SourceControl;
+export type SourceControlRepositoryUpdateListener = (repo: Repository) => void;
 
 /**
  * A backend that integrates Stack Attack with a source control management
