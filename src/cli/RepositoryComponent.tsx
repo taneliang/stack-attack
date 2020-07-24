@@ -1,4 +1,5 @@
-import type { Repository, NavigatorBackend } from "../NavigatorBackendType";
+import type { Stacker } from "../stacker";
+import type { Repository } from "../shared/types";
 
 import React from "react";
 import { Text, Box, useInput, useApp } from "ink";
@@ -55,7 +56,7 @@ interface CommitInfoProps {
 }
 const CommitInfo: React.FC<CommitInfoProps> = ({
   displayCommit: {
-    commit: { hash, timestamp, title, author, branchNames, pullRequestInfo },
+    commit: { hash, timestamp, title, author, refNames, pullRequestInfo },
     isFocused,
     isBeingMoved,
   },
@@ -73,8 +74,8 @@ const CommitInfo: React.FC<CommitInfoProps> = ({
       <Box flexDirection="column">
         <Box>
           <Text color="cyan">{timestamp.toISOString()}</Text>
-          {branchNames.length > 0 && (
-            <Text color="greenBright">{` (${branchNames.join(", ")})`}</Text>
+          {refNames.length > 0 && (
+            <Text color="greenBright">{` (${refNames.join(", ")})`}</Text>
           )}
         </Box>
         <Text>{title}</Text>
@@ -127,18 +128,18 @@ const CommandList: React.FC<CommandListProps> = ({ commands }) => (
 );
 
 interface RepositoryComponentProps {
-  backend: NavigatorBackend;
+  stacker: Stacker;
   repository: Repository;
   reload: () => void;
 }
 export const RepositoryComponent: React.FC<RepositoryComponentProps> = ({
-  backend,
+  stacker,
   repository,
   reload,
 }) => {
   const { exit } = useApp();
 
-  const [state, dispatch] = useInteractionReducer(backend, repository);
+  const [state, dispatch] = useInteractionReducer(stacker, repository);
 
   useInput((input, key) => {
     if (input === "q") {

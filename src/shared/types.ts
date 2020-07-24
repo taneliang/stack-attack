@@ -40,7 +40,15 @@ export interface Commit {
 export interface Repository {
   path: string;
   hasUncommittedChanges: boolean;
-  headHash: string;
+  headHash: CommitHash;
 
   earliestInterestingCommit: Commit;
+
+  /**
+   * All relevant commits in the repository.
+   *
+   * This is not a `Map` as we need to be able to detect that this object has
+   * changed. We could revisit this decision again in the future.
+   */
+  commits: { [hash: string]: Commit };
 }

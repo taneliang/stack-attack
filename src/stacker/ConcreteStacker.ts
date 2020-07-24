@@ -61,6 +61,19 @@ export class ConcreteStacker implements Stacker {
   ): Promise<void> {
     // TODO: 1. Find all commits in the tree rooted at this commit.
 
+    // Some old code from useInteractionReducer that gets a stack rooted at
+    // `commit`s is below. It may be possible to update this to work with the
+    // new `childCommit` hashes (as it used to be `Commit` objects) and also
+    // adapt this to operate on trees.
+
+    // const stack = [];
+    // const nextCommits = [commit];
+    // while (nextCommits.length) {
+    //   const nextCommit = nextCommits.pop()!;
+    //   stack.push(nextCommit);
+    //   nextCommits.push(...nextCommit.childCommits);
+    // }
+
     // TODO: 2. Create or update PRs for all these commits.
 
     // 3. Update PR descriptions for all stacked PRs related to this commit.

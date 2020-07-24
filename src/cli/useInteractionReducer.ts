@@ -1,4 +1,6 @@
-import { Repository, Commit, NavigatorBackend } from "../NavigatorBackendType";
+import type { Stacker } from "../stacker";
+import type { Repository, Commit } from "../shared/types";
+
 import { useReducer, useEffect } from "react";
 
 export type DisplayCommit = {
@@ -30,7 +32,7 @@ type RebaseModeState = {
 };
 
 type State = {
-  backend: NavigatorBackend;
+  stacker: Stacker;
   repository: Repository;
   commits: DisplayCommit[];
   modeState: NormalModeState | RebaseModeState;
@@ -44,7 +46,7 @@ const initialState: Pick<State, "modeState" | "keyboardCommands"> = {
 type InitializeAction = {
   type: "initialize";
   payload: {
-    backend: NavigatorBackend;
+    stacker: Stacker;
     repository: Repository;
   };
 };
@@ -59,6 +61,7 @@ type KeyAction = {
 type Action = InitializeAction | KeyAction;
 
 function backendCommitGraphToDisplayCommits(
+  repository: Repository,
   backendRootCommit: Commit,
 ): DisplayCommit[] {
   // Recursively build commit **tree**.
@@ -69,7 +72,10 @@ function backendCommitGraphToDisplayCommits(
     depth: number,
     hasFork: boolean,
   ): DisplayCommit[] {
-    const sortedChildren = subgraphBackendRootCommit.childCommits.sort((a, b) =>
+    const childCommits = subgraphBackendRootCommit.childCommits.map(
+      (childCommitHash) => repository.commits[childCommitHash],
+    );
+    const sortedChildren = childCommits.sort((a, b) =>
       a.timestamp > b.timestamp ? 1 : -1,
     );
     const childDisplayCommits = sortedChildren.flatMap((child, index) => {
@@ -99,15 +105,15 @@ function backendCommitGraphToDisplayCommits(
   return displayCommitsForSubgraphRootedAtCommit(backendRootCommit, 1, false);
 }
 
-function initializedState(
-  backend: NavigatorBackend,
-  repository: Repository,
-): State {
+function initializedState(stacker: Stacker, repository: Repository): State {
   return stateForNormalMode({
     ...initialState,
-    backend,
+    stacker,
     repository,
-    commits: backendCommitGraphToDisplayCommits(repository.rootDisplayCommit),
+    commits: backendCommitGraphToDisplayCommits(
+      repository,
+      repository.earliestInterestingCommit,
+    ),
   });
 }
 
@@ -215,20 +221,15 @@ function stateForNormalMode(state: State): State {
         {
           key: "c",
           name: "PR single commit",
-          handler(state, { payload: { reload } }) {
-            const { commits, backend, repository } = state;
-
+          handler(state) {
+            const { commits, stacker } = state;
             const focusedCommitIndex = indexOfFocusedCommit(commits);
             // Bail if no focus
             if (focusedCommitIndex === -1) {
               return state;
             }
-
             const stackBase = commits[focusedCommitIndex].commit;
-
-            backend
-              .createOrUpdatePRsForCommits(repository.path, [stackBase])
-              .then(() => reload());
+            stacker.createOrUpdatePRContentsForSingleCommit(stackBase);
             return state;
           },
         },
@@ -238,29 +239,17 @@ function stateForNormalMode(state: State): State {
         {
           key: "s",
           name: "PR stack",
-          handler(state, { payload: { reload } }) {
-            const { commits, backend, repository } = state;
-
+          handler(state) {
+            const { commits, stacker } = state;
             const focusedCommitIndex = indexOfFocusedCommit(commits);
             // Bail if no focus
             if (focusedCommitIndex === -1) {
               return state;
             }
-
             const stackBase = commits[focusedCommitIndex].commit;
-
-            // Traverse tree to build commit stack
-            const stack = [];
-            const nextCommits = [stackBase];
-            while (nextCommits.length) {
-              const nextCommit = nextCommits.pop()!;
-              stack.push(nextCommit);
-              nextCommits.push(...nextCommit.childCommits);
-            }
-
-            backend
-              .createOrUpdatePRsForCommits(repository.path, stack)
-              .then(() => reload());
+            stacker.createOrUpdatePRContentsForCommitTreeRootedAtCommit(
+              stackBase,
+            );
             return state;
           },
         },
@@ -286,7 +275,7 @@ function stateForRebaseMode(state: State): State {
     return stateForNormalMode(state);
   }
 
-  const originalRebaseRootParent = rebaseRoot.commit.parentCommits[0];
+  const originalRebaseRootParentHash = rebaseRoot.commit.parentCommits[0];
 
   // Mark commits as being moved.
   // Loop from earliest to latest commit (assumes commits is sorted in ascending
@@ -307,7 +296,7 @@ function stateForRebaseMode(state: State): State {
       return displayCommit;
     }
 
-    const parentHash = parentCommits[0].hash;
+    const parentHash = parentCommits[0];
     if (!movingHashes.has(parentHash)) {
       return displayCommit;
     }
@@ -319,9 +308,8 @@ function stateForRebaseMode(state: State): State {
     };
   });
 
-  // Move focus to originalRebaseRootParent
+  // Move focus to originalRebaseRootParentHash
   newCommits = commitsWithMovedFocus(newCommits, () => {
-    const originalRebaseRootParentHash = originalRebaseRootParent.hash;
     // We know indexOfRebaseRootParent must not be -1 as we know the parent exists
     return newCommits.findIndex(
       ({ commit: { hash } }) => hash === originalRebaseRootParentHash,
@@ -421,8 +409,7 @@ function stateForRebaseMode(state: State): State {
 
             const {
               commits,
-              backend,
-              repository,
+              stacker,
               modeState: { rebaseRoot },
             } = state;
 
@@ -434,12 +421,8 @@ function stateForRebaseMode(state: State): State {
 
             const rebaseTarget = commits[focusedCommitIndex];
 
-            backend
-              .rebaseCommits(
-                repository.path,
-                rebaseRoot.commit,
-                rebaseTarget.commit,
-              )
+            stacker
+              .rebaseCommits(rebaseRoot.commit, rebaseTarget.commit)
               .then(() => reload());
             return state;
           },
@@ -453,7 +436,7 @@ function reducer(state: Readonly<State>, action: Action): State {
   switch (action.type) {
     case "initialize": {
       return initializedState(
-        action.payload.backend,
+        action.payload.stacker,
         action.payload.repository,
       );
     }
@@ -470,15 +453,15 @@ function reducer(state: Readonly<State>, action: Action): State {
 }
 
 export function useInteractionReducer(
-  backend: NavigatorBackend,
+  stacker: Stacker,
   repository: Repository,
 ): [State, React.Dispatch<Action>] {
   const [state, dispatch] = useReducer(reducer, {}, () =>
-    initializedState(backend, repository),
+    initializedState(stacker, repository),
   );
 
   useEffect(() => {
-    dispatch({ type: "initialize", payload: { backend, repository } });
+    dispatch({ type: "initialize", payload: { stacker, repository } });
   }, [repository]);
 
   return [state, dispatch];
