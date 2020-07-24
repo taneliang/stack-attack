@@ -1,5 +1,8 @@
-import type { Commit } from "../shared/types";
-import type { SourceControl } from "../source-control/SourceControl";
+import type { Commit, Repository } from "../shared/types";
+import type {
+  SourceControl,
+  SourceControlRepositoryUpdateListener,
+} from "../source-control/SourceControl";
 import type { CollaborationPlatform } from "../collaboration-platform/CollaborationPlatform";
 import type { Stacker, StackerRepositoryUpdateListener } from "./Stacker";
 
@@ -11,21 +14,31 @@ import type { Stacker, StackerRepositoryUpdateListener } from "./Stacker";
  */
 export class ConcreteStacker implements Stacker {
   private repoPath: string;
-  private sourceControl: SourceControl;
   private collaborationPlatform: CollaborationPlatform;
+  private sourceControl: SourceControl;
 
   repositoryUpdateListener: StackerRepositoryUpdateListener;
+
+  private sourceControlRepositoryUpdateListener: SourceControlRepositoryUpdateListener = (
+    repo: Repository,
+  ) => {
+    this.repositoryUpdateListener(repo);
+  };
 
   constructor(
     repoPath: string,
     repositoryUpdateListener: StackerRepositoryUpdateListener,
-    sourceControl: SourceControl,
     collaborationPlatform: CollaborationPlatform,
+    sourceControlConstructor: (
+      stackerListener: SourceControlRepositoryUpdateListener,
+    ) => SourceControl,
   ) {
     this.repoPath = repoPath;
     this.repositoryUpdateListener = repositoryUpdateListener;
-    this.sourceControl = sourceControl;
     this.collaborationPlatform = collaborationPlatform;
+    this.sourceControl = sourceControlConstructor(
+      this.sourceControlRepositoryUpdateListener.bind(this),
+    );
   }
 
   loadRepositoryInformation(): void {
