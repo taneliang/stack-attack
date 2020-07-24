@@ -1,4 +1,4 @@
-import type { Commit } from "../shared/types";
+import type { Commit, CommitHash } from "../shared/types";
 import type {
   SourceControl,
   SourceControlRepositoryUpdateListener,
@@ -19,6 +19,11 @@ export class GitSourceControl implements SourceControl {
 
   loadRepositoryInformation(): void {
     // TODO: Implement
+  }
+
+  async getCommitByHash(hash: CommitHash): Promise<Commit | null> {
+    // TODO: Implement
+    return null;
   }
 
   async rebaseCommits(
