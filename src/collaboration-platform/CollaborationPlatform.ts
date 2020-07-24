@@ -1,16 +1,9 @@
-import {
-  Commit,
-  PullRequestInfo,
+import type {
   BranchName,
+  Commit,
   PullRequestID,
+  PullRequestInfo,
 } from "../shared/types";
-
-// /**
-//  * @param repoPath Path to repository root.
-//  */
-// constructor(
-//   repoPath: string,
-// ): CollaborationPlatform;
 
 export interface CollaborationPlatform {
   /**
