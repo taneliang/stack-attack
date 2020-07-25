@@ -54,6 +54,13 @@ export class GitHubCollaborationPlatform implements CollaborationPlatform {
     };
   }
 
+  async createOrUpdatePRForSingleCommit(
+    commit: Commit,
+    branch: BranchName,
+  ): Promise<void> {
+    //TODO: Implement
+  }
+
   async createOrUpdatePRForCommits(
     commitsWithMetadata: {
       commit: Commit;
