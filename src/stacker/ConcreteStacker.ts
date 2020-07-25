@@ -1,4 +1,9 @@
-import type { Commit, Repository, CommitHash } from "../shared/types";
+import type {
+  Commit,
+  Repository,
+  CommitHash,
+  BranchName,
+} from "../shared/types";
 import type {
   SourceControl,
   SourceControlRepositoryUpdateListener,
@@ -54,7 +59,14 @@ export class ConcreteStacker implements Stacker {
   }
 
   async createOrUpdatePRContentsForSingleCommit(commit: Commit): Promise<void> {
-    // TODO: Implement
+    const commitBranchPairs = await this.sourceControl.attachSttackBranchesToCommits(
+      [commit],
+    );
+    const { sttackBranch } = commitBranchPairs[0];
+    return this.collaborationPlatform.createOrUpdatePRForSingleCommit(
+      commit,
+      sttackBranch,
+    );
   }
 
   async createOrUpdatePRContentsForCommitTreeRootedAtCommit(
