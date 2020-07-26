@@ -42,8 +42,7 @@ export class GitHubCollaborationPlatform implements CollaborationPlatform {
   }
 
   async getPRForCommit(commit: Commit): Promise<PullRequestInfo | null> {
-    const owner = (await repoPathToOwnerAndRepo(this.repoPath)).owner;
-    const repo = (await repoPathToOwnerAndRepo(this.repoPath)).repo;
+    const { owner, repo } = await repoPathToOwnerAndRepo(this.repoPath);
     try {
       const {
         data,
