@@ -1,4 +1,9 @@
-import type { Repository, Commit, CommitHash } from "../shared/types";
+import type {
+  Repository,
+  Commit,
+  CommitHash,
+  BranchName,
+} from "../shared/types";
 
 export type SourceControlRepositoryUpdateListener = (repo: Repository) => void;
 
@@ -58,5 +63,7 @@ export interface SourceControl {
    * @param commits The commits to attach Stack Attack branches to.
    * @returns Promise that resolves when operation is complete.
    */
-  attachSttackBranchesToCommits(commits: Commit[]): Promise<void>;
+  attachSttackBranchesToCommits(
+    commits: Commit[],
+  ): Promise<Array<{ commit: Commit; sttackBranch: BranchName }>>;
 }
