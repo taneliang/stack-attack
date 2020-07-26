@@ -30,25 +30,27 @@ async function repoPathToOwnerAndRepo(
 }
 
 export class GitHubCollaborationPlatform implements CollaborationPlatform {
+  private repoPath: string;
   private owner: string;
   private repo: string;
-  private octokit = getOctokit(this.repoPath);
-
   /**
    * @param repoPath Path to repository root.
    */
-  constructor(repoPath: string) {
+  constructor(repoPath: string, owner: string, repo: string) {
     this.repoPath = repoPath;
+    this.owner = owner;
+    this.repo = repo;
   }
+  private octokit = getOctokit(this.repoPath);
 
   async getPRForCommit(commit: Commit): Promise<PullRequestInfo | null> {
-    const { owner, repo } = await repoPathToOwnerAndRepo(this.repoPath);
+    //{ this.owner, repo } = await repoPathToOwnerAndRepo(this.repoPath);
     try {
       const {
         data,
       } = await this.octokit.repos.listPullRequestsAssociatedWithCommit({
-        owner,
-        repo,
+        owner: this.owner,
+        repo: this.repo,
         commit_sha: commit.hash,
       });
       const prResult = data[0];
@@ -65,24 +67,18 @@ export class GitHubCollaborationPlatform implements CollaborationPlatform {
   }
 
   async getPR(prNumber: PullRequestID): Promise<PullRequestInfo | null> {
-    const owner = (await repoPathToOwnerAndRepo(this.repoPath)).owner;
-    const repo = (await repoPathToOwnerAndRepo(this.repoPath)).repo;
-    try {
-      const { data: pullRequest } = await this.octokit.pulls.get({
-        owner,
-        repo,
-        pull_number: prNumber,
-      });
+    const { data: pullRequest } = await this.octokit.pulls.get({
+      owner: this.owner,
+      repo: this.repo,
+      pull_number: prNumber,
+    });
 
-      return {
-        number: prNumber,
-        url: pullRequest.url,
-        title: pullRequest.title,
-        description: pullRequest.body,
-      };
-    } catch (e) {
-      return null;
-    }
+    return {
+      number: prNumber,
+      url: pullRequest.url,
+      title: pullRequest.title,
+      description: pullRequest.body,
+    };
   }
 
   async createOrUpdatePRForCommits(
@@ -126,26 +122,24 @@ export class GitHubCollaborationPlatform implements CollaborationPlatform {
   async updatePRDescriptionsForCommitGraph(
     commitPrInfoPairs: { commit?: Commit; prInfo: PullRequestInfo }[],
   ): Promise<void> {
-    const owner = (await repoPathToOwnerAndRepo(this.repoPath)).owner;
-    const repo = (await repoPathToOwnerAndRepo(this.repoPath)).repo;
     // Get list of PRs
-    const pullRequests = await Promise.all(
-      commitPrInfoPairs.map(async ({ prInfo }) => {
-        const prNumber = prInfo.number;
-        const prResult = await this.octokit.pulls.get({
-          owner,
-          repo,
-          pull_number: prNumber,
-        });
-        return prResult;
-      }),
-    );
+    // const pullRequests = await Promise.all(
+    //   commitPrInfoPairs.map(async ({ prInfo }) => {
+    //     const prNumber = prInfo.number;
+    //     const prResult = await this.octokit.pulls.get({
+    //       owner,
+    //       repo,
+    //       pull_number: prNumber,
+    //     });
+    //     return prResult;
+    //   }),
+    // );
     // Update PR descriptions
     await Promise.all(
-      pullRequests.map((pullRequest, prIndex) => {
+      commitPrInfoPairs.map((pullRequest, prIndex) => {
         let description =
           "Stack PR by [STACK ATTACK](https://github.com/taneliang/stack-attack):\n";
-        description += pullRequests
+        description += 
           .map(({ data }, indexOfDescriptionPr) => {
             const starsOrNone = prIndex === indexOfDescriptionPr ? "**" : "";
             const number = data.number;
