@@ -48,4 +48,6 @@ export interface CollaborationPlatform {
   updatePRDescriptionsForCommitGraph(
     commitPrInfoPairs: { commit?: Commit; prInfo: PullRequestInfo }[],
   ): Promise<void>;
+
+  getPRStack()
 }
