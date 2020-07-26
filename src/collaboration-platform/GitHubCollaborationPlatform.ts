@@ -30,7 +30,8 @@ async function repoPathToOwnerAndRepo(
 }
 
 export class GitHubCollaborationPlatform implements CollaborationPlatform {
-  private repoPath: string;
+  private owner: string;
+  private repo: string;
   private octokit = getOctokit(this.repoPath);
 
   /**
