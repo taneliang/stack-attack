@@ -68,7 +68,7 @@ export class GitHubCollaborationPlatform implements CollaborationPlatform {
     const owner = (await repoPathToOwnerAndRepo(this.repoPath)).owner;
     const repo = (await repoPathToOwnerAndRepo(this.repoPath)).repo;
     try {
-      const prResult = this.octokit.pulls.get({
+      const { data: pullRequest } = await this.octokit.pulls.get({
         owner,
         repo,
         pull_number: prNumber,
@@ -76,9 +76,9 @@ export class GitHubCollaborationPlatform implements CollaborationPlatform {
 
       return {
         number: prNumber,
-        url: (await prResult).data.url,
-        title: (await prResult).data.title,
-        description: (await prResult).data.body,
+        url: pullRequest.url,
+        title: pullRequest.title,
+        description: pullRequest.body,
       };
     } catch (e) {
       return null;
