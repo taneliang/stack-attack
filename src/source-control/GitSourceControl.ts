@@ -1,5 +1,6 @@
 import nodegit from "nodegit";
 import produce, { enableMapSet } from "immer";
+<<<<<<< HEAD
 import fs from "fs";
 import { lorem } from "faker";
 enableMapSet();
@@ -12,11 +13,19 @@ import type {
   CommitSignature,
   PullRequestInfo,
 } from "../shared/types";
+=======
+import randomWord from "random-word";
+import fs from "fs";
+enableMapSet();
+
+import type { Commit, CommitSignature, Repository } from "../shared/types";
+>>>>>>> 4bcef98e55f0e9e01f7f3222fa2f1d00b45d83ea
 import type {
   SourceControl,
   SourceControlRepositoryUpdateListener,
 } from "./SourceControl";
 
+<<<<<<< HEAD
 const localRefPrefix: string = "refs/heads/";
 
 function refIsLocal(refString: string): boolean {
@@ -35,6 +44,17 @@ function isSttackBranch(branch: BranchName): boolean {
 function createSttackBranch(): BranchName {
   const branchName: BranchName = `sttack-${lorem.slug(3)}`;
   return branchName;
+=======
+const localRefPrefix = "refs/heads/";
+
+function refIsLocal(refString: string) {
+  return refString.startsWith(localRefPrefix);
+}
+
+function localRefToBranchName(refString: string) {
+  if (!refIsLocal(refString)) return refString;
+  return refString.substr("refs/heads/".length);
+>>>>>>> 4bcef98e55f0e9e01f7f3222fa2f1d00b45d83ea
 }
 
 export class GitSourceControl implements SourceControl {
@@ -230,11 +250,14 @@ export class GitSourceControl implements SourceControl {
       repo: ourRepository,
       remoteRepoInfoPromise: getRemoteRepoInfo(ourRepository),
     };
+<<<<<<< HEAD
   }
 
   async getCommitByHash(hash: CommitHash): Promise<Commit | null> {
     // TODO: Implement
     return null;
+=======
+>>>>>>> 4bcef98e55f0e9e01f7f3222fa2f1d00b45d83ea
   }
 
   async rebaseCommits(
@@ -242,7 +265,11 @@ export class GitSourceControl implements SourceControl {
     targetCommit: string,
   ): Promise<void> {
     const repo = await nodegit.Repository.open(this.repoPath);
+<<<<<<< HEAD
     const tempBranchName = `sttack-${lorem.slug(3)}`;
+=======
+    const tempBranchName = `sttack-${randomWord()}`;
+>>>>>>> 4bcef98e55f0e9e01f7f3222fa2f1d00b45d83ea
     const queue: string[] = [rebaseRootCommit];
     // 1. Rebase root commit on target commit
     // 2. Update Target Commit to point to the cherry picked commit
