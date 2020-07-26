@@ -24,6 +24,7 @@ function createSttackBranch(commit: Commit): BranchName {
   return ""; 
 }
 
+
 export class GitSourceControl implements SourceControl {
   private repoPath: string;
 
