@@ -9,7 +9,7 @@ export interface CollaborationPlatform {
   /**
    * Get PR info for a particular commit.
    */
-  getPRForCommit(commit: Commit): Promise<PullRequestInfo | null>;
+  getPRForCommit(commit: Commit): Promise<PullRequestInfo>;
 
   /**
    * Get PR info given a PR number.

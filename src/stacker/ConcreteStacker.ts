@@ -2,7 +2,7 @@ import type {
   Commit,
   Repository,
   CommitHash,
-  BranchName,
+  PullRequestInfo
 } from "../shared/types";
 import type {
   SourceControl,
@@ -74,7 +74,7 @@ export class ConcreteStacker implements Stacker {
     // Some old code from useInteractionReducer that gets a stack rooted at
     // `commit`s is below. It may be possible to update this to work with the
     // new `childCommit` hashes (as it used to be `Commit` objects) and also
-    // adapt this to operate on trees. 
+    // adapt this to operate on trees.
 
     const stack = [];
     const nextCommits = [commit];
@@ -92,8 +92,7 @@ export class ConcreteStacker implements Stacker {
     const commitBranchPairs = await this.sourceControl.attachSttackBranchesToCommits(
       stack,
     );
-    // TODO: call createOrUpdatePRForCommits from GHCP with base = master , head = sttack branch name 
-    // Question: This updates all PRs in the graph traversal, do we still need to care about this while updating PR Description for the complete tree? 
+    // TODO: call createOrUpdatePRForCommits from GHCP with base = master , head = sttack branch name
 
     // 3. Update PR descriptions for all stacked PRs related to this commit.
     await this.updatePRDescriptionsForCompleteTreeContainingCommit(commit);
@@ -124,6 +123,23 @@ export class ConcreteStacker implements Stacker {
   private async updatePRDescriptionsForCompleteTreeContainingCommit(
     commit: Commit,
   ): Promise<void> {
-    // TODO: Implement
+    const stack = [];
+    const nextCommits = [commit];
+    while (nextCommits.length) {
+      const nextCommit = nextCommits.pop()!;
+      stack.push(nextCommit);
+      const childCommits: Commit[] = [];
+      nextCommit.childCommits.forEach((commitHash) => {
+        this.sourceControl.getCommitByHash(commitHash);
+      });
+      nextCommits.push(...childCommits);
+    }
+    //TODO: Implement a complete version of the stack that start from the merge-base commit and also takes into consideration landed PRs
+    let commitPrInfoPairs: { commit?: Commit; prInfo: PullRequestInfo}[] = [];
+    stack.forEach(async (commit) => {
+      let PRInfo = await this.collaborationPlatform.getPRForCommit(commit);
+      commitPrInfoPairs.push({commit: commit, prInfo: PRInfo})
+    });
+    return this.collaborationPlatform.updatePRDescriptionsForCommitGraph(commitPrInfoPairs); 
   }
 }
