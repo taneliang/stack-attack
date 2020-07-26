@@ -1,11 +1,9 @@
-import { func } from "prop-types";
 import type { BranchName, Commit, CommitHash } from "../shared/types";
 import type {
   SourceControl,
   SourceControlRepositoryUpdateListener,
 } from "./SourceControl";
 
-var randomWords = require("random-words");
 let localRefPrefix: string = "refs/heads/";
 
 function refIsLocal(refString: string): boolean {
@@ -18,14 +16,14 @@ function localRefToBranchName(refString: string): string {
 }
 
 function isSttackBranch(branch: BranchName): boolean {
-  if (branch.startsWith("sttack-")) return true;
-  return false;
+  return branch.startsWith("sttack-");
 }
 
-function createSttackBranch(commit: Commit): string {
-  let branch: BranchName = `sttack-${randomWords({ exactly: 4, join: "-" })}`;
-  return branch;
+function createSttackBranch(commit: Commit): BranchName {
+  //TODO: Implement slug generation
+  return ""; 
 }
+
 export class GitSourceControl implements SourceControl {
   private repoPath: string;
 

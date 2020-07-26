@@ -16,11 +16,6 @@ export interface CollaborationPlatform {
    */
   getPR(prNumber: PullRequestID): Promise<PullRequestInfo | null>;
 
-  createOrUpdatePRForSingleCommit(
-    commit: Commit,
-    branch: BranchName,
-  ): Promise<void>;
-
   /**
    * Create or update PRs for the given commit/branch pairs. The following
    * information should be updated:

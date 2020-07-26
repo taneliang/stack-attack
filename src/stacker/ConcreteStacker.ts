@@ -62,11 +62,8 @@ export class ConcreteStacker implements Stacker {
     const commitBranchPairs = await this.sourceControl.attachSttackBranchesToCommits(
       [commit],
     );
-    const { sttackBranch } = commitBranchPairs[0];
-    return this.collaborationPlatform.createOrUpdatePRForSingleCommit(
-      commit,
-      sttackBranch,
-    );
+    //TODO: Implemenet createOrUpdatePRForCommits with new parameters
+    // const commits = this.collaborationPlatform.createOrUpdatePRForCommits(commitBranchPairs);
   }
 
   async createOrUpdatePRContentsForCommitTreeRootedAtCommit(
