@@ -1,15 +1,23 @@
 import nodegit from "nodegit";
 import produce, { enableMapSet } from "immer";
 import fs from "fs";
+import { lorem } from "faker";
 enableMapSet();
 
-import type { BranchName, Commit, CommitHash, Repository, CommitSignature } from "../shared/types";
+import type {
+  BranchName,
+  Commit,
+  CommitHash,
+  Repository,
+  CommitSignature,
+  PullRequestInfo,
+} from "../shared/types";
 import type {
   SourceControl,
   SourceControlRepositoryUpdateListener,
 } from "./SourceControl";
 
-let localRefPrefix: string = "refs/heads/";
+const localRefPrefix: string = "refs/heads/";
 
 function refIsLocal(refString: string): boolean {
   return refString.startsWith(localRefPrefix);
@@ -24,11 +32,10 @@ function isSttackBranch(branch: BranchName): boolean {
   return branch.startsWith("sttack-");
 }
 
-function createSttackBranch(commit: Commit): BranchName {
-  //TODO: Implement slug generation
-  return ""; 
+function createSttackBranch(): BranchName {
+  const branchName: BranchName = `sttack-${lorem.slug(3)}`;
+  return branchName;
 }
-
 
 export class GitSourceControl implements SourceControl {
   private repoPath: string;
@@ -235,7 +242,7 @@ export class GitSourceControl implements SourceControl {
     targetCommit: string,
   ): Promise<void> {
     const repo = await nodegit.Repository.open(this.repoPath);
-    const tempBranchName = `sttack-${randomWord()}`;
+    const tempBranchName = `sttack-${lorem.slug(3)}`;
     const queue: string[] = [rebaseRootCommit];
     // 1. Rebase root commit on target commit
     // 2. Update Target Commit to point to the cherry picked commit
@@ -407,23 +414,37 @@ export class GitSourceControl implements SourceControl {
   async attachSttackBranchesToCommits(
     commits: Commit[],
   ): Promise<Array<{ commit: Commit; sttackBranch: BranchName }>> {
-    let commitBranchPairs: Array<{
+    const commitBranchPairs: Array<{
       commit: Commit;
       sttackBranch: BranchName;
     }> = [];
-    commits.forEach((commit) => {
-      let branch: BranchName = "";
-      commit.refNames.forEach((refName) => {
-        if (isSttackBranch(localRefToBranchName(refName))) {
-          branch = localRefToBranchName(refName);
+
+    const repo = await nodegit.Repository.open(this.repoPath);
+    await Promise.all(
+      commits.map(async (commit) => {
+        let branch: BranchName = "";
+        commit.refNames.forEach((refName) => {
+          if (isSttackBranch(localRefToBranchName(refName))) {
+            branch = localRefToBranchName(refName);
+          }
+        });
+        if (branch.length == 0) {
+          branch = createSttackBranch();
+          await repo.createBranch(branch, commit.hash, true);
+          this.commitHashMap = produce(
+            this.commitHashMap,
+            (draftCommitHashMap) => {
+              const commitToUpdate = draftCommitHashMap.get(commit.hash)!;
+              commitToUpdate.refNames = Array.from(
+                new Set([...commitToUpdate.refNames, branch]),
+              );
+              draftCommitHashMap.set(commit.hash, commitToUpdate);
+            },
+          );
         }
-      });
-      if (branch === "") {
-        branch = createSttackBranch(commit);
-        //TODO: Implement branch creation
-      }
-      commitBranchPairs.push({ commit: commit, sttackBranch: branch });
-    });
+        commitBranchPairs.push({ commit: commit, sttackBranch: branch });
+      }),
+    );
     return commitBranchPairs;
   }
 }

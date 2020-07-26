@@ -55,7 +55,10 @@ export class ConcreteStacker implements Stacker {
   }
 
   rebaseCommits(rebaseRootCommit: Commit, targetCommit: Commit): Promise<void> {
-    return this.sourceControl.rebaseCommits(rebaseRootCommit, targetCommit);
+    return this.sourceControl.rebaseCommits(
+      rebaseRootCommit.hash,
+      targetCommit.hash,
+    );
   }
 
   async createOrUpdatePRContentsForSingleCommit(commit: Commit): Promise<void> {
