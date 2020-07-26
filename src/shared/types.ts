@@ -50,5 +50,5 @@ export interface Repository {
    * This is not a `Map` as we need to be able to detect that this object has
    * changed. We could revisit this decision again in the future.
    */
-  commits: { [hash: string]: Commit };
+  commits: Map<string, Commit>;
 }

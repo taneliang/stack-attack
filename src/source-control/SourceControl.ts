@@ -29,7 +29,7 @@ export interface SourceControl {
    * @param targetCommit The commit the tree should be rebased on.
    * @returns Promise that resolves when operation is complete.
    */
-  rebaseCommits(rebaseRootCommit: Commit, targetCommit: Commit): Promise<void>;
+  rebaseCommits(rebaseRootCommit: string, targetCommit: string): Promise<void>;
 
   pushCommit(commit: Commit): Promise<void>;
   pushCommitsForCommitTreeRootedAtCommit(commit: Commit): Promise<void>;
