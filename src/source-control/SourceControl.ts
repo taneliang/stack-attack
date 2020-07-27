@@ -44,11 +44,14 @@ export interface SourceControl {
    *
    * Calls `repositoryUpdateListener` on success.
    *
-   * @param rebaseRootCommit The commit tree root to be moved.
-   * @param targetCommit The commit the tree should be rebased on.
+   * @param rebaseRootCommit The commit tree root hash to be moved.
+   * @param targetCommit The commit hash the tree should be rebased on.
    * @returns Promise that resolves when operation is complete.
    */
-  rebaseCommits(rebaseRootCommit: string, targetCommit: string): Promise<void>;
+  rebaseCommits(
+    rebaseRootCommit: CommitHash,
+    targetCommit: CommitHash,
+  ): Promise<void>;
 
   pushCommit(commit: Commit): Promise<void>;
   pushCommitsForCommitTreeRootedAtCommit(commit: Commit): Promise<void>;

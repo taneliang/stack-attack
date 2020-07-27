@@ -227,8 +227,8 @@ export class GitSourceControl implements SourceControl {
   }
 
   async rebaseCommits(
-    rebaseRootCommit: string,
-    targetCommit: string,
+    rebaseRootCommit: CommitHash,
+    targetCommit: CommitHash,
   ): Promise<void> {
     const repo = await nodegit.Repository.open(this.repoPath);
     const tempBranchName = `sttack-${lorem.slug(3)}`;
