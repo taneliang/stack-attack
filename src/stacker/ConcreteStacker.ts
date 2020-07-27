@@ -63,18 +63,11 @@ export class ConcreteStacker implements Stacker {
     const commitBranchPairs = await this.sourceControl.attachSttackBranchesToCommits(
       [commit],
     );
-    const commitsWithMetaData: Array<{
-      commit: Commit;
-      headBranch: BranchName;
-      baseBranch: BranchName;
-    }> = [];
-    commitBranchPairs.forEach((commitBranchPair) => {
-      commitsWithMetaData.push({
-        commit: commitBranchPair.commit,
-        headBranch: commitBranchPair.sttackBranch,
-        baseBranch: "master",
-      });
-    });
+    const commitsWithMetaData = commitBranchPairs.map((commitBranchPair) => ({
+      commit: commitBranchPair.commit,
+      headBranch: commitBranchPair.sttackBranch,
+      baseBranch: "master", // TODO: Implement retrieval of base branch for a given commit
+    }));
     const commits = this.collaborationPlatform.createOrUpdatePRForCommits(
       commitsWithMetaData,
     );
