@@ -162,9 +162,9 @@ export class ConcreteStacker implements Stacker {
     //TODO: Implement a complete version of the stack that start from the merge-base commit and also takes into consideration landed PRs
     let commitPrInfoPairs: { commit?: Commit; prInfo: PullRequestInfo }[] = [];
     stack.forEach(async (commit) => {
-      let PRInfo = await this.collaborationPlatform.getPRForCommit(commit);
-      if (PRInfo !== null) {
-        commitPrInfoPairs.push({ commit: commit, prInfo: PRInfo });
+      let prInfo = await this.collaborationPlatform.getPRForCommit(commit);
+      if (prInfo !== null) {
+        commitPrInfoPairs.push({ commit, prInfo });
       }
     });
     return this.collaborationPlatform.updatePRDescriptionsForCommitGraph(
