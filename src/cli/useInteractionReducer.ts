@@ -73,9 +73,8 @@ function backendCommitGraphToDisplayCommits(
     hasFork: boolean,
   ): DisplayCommit[] {
     const childCommits = subgraphBackendRootCommit.childCommits.map(
-      /*  SEE - Changes from Object Ref to Map.get, making the retutn type Commit | undefined. 
-      Adding a `!` here to get rid of TS errors
-      */
+      /*  SEE - Since the commits came from the graph, childCommitHash must exist in repository.commits.
+       */
       (childCommitHash) => repository.commits.get(childCommitHash)!,
     );
     const sortedChildren = childCommits.sort((a, b) =>

@@ -52,11 +52,6 @@ export class GitSourceControl implements SourceControl {
     this.repositoryUpdateListener = repositoryUpdateListener;
   }
 
-  async getRepo(): Promise<Repository> {
-    await this.loadIfChangesPresent();
-    return this.repo;
-  }
-
   loadRepositoryInformation(): void {
     this.repositoryUpdateListener(this.repo);
   }

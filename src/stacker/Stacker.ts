@@ -30,7 +30,7 @@ export interface Stacker {
    *
    * Calls `repositoryUpdateListener` on success.
    *
-   * @param rebaseRootCommit The commit has for tree root to be moved.
+   * @param rebaseRootCommit The commit hash has for tree root to be moved.
    * @param targetCommit The commit hash for the tree should be rebased on.
    * @returns Promise that resolves when operation is complete.
    */
