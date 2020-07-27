@@ -36,7 +36,7 @@ program
   .alias("i")
   .description("Stack Attack's interactive terminal UI")
   .option("-r, --repo <repoPath>", "path to Git repository")
-  .action(({ repo = defaultRepoPath }: Command) => {
+  .action(async ({ repo = defaultRepoPath }: Command) => {
     console.log("repo", repo);
 
     let repository: Repository | null = null;
@@ -46,7 +46,7 @@ program
     ) => {
       repository = repo;
     };
-    const stacker = constructStacker(repo, repositoryUpdateListener);
+    const stacker = await constructStacker(repo, repositoryUpdateListener);
     stacker.loadRepositoryInformation();
 
     function reload() {
@@ -67,7 +67,7 @@ program
       rebaseTargetCommitHash: string,
       { repo = defaultRepoPath }: Command,
     ) => {
-      const stacker = constructStacker(repo, () => {});
+      const stacker = await constructStacker(repo, () => {});
       const rebaseRootCommit = await stacker.getCommitByHash(
         rebaseRootCommitHash,
       );
@@ -104,7 +104,7 @@ program
   .description("create/update a PR for the given commit")
   .option("-r, --repo <repoPath>", "path to Git repository")
   .action(async (commitHash: string, { repo = defaultRepoPath }: Command) => {
-    const stacker = constructStacker(repo, () => {});
+    const stacker = await constructStacker(repo, () => {});
     const baseCommit = await stacker.getCommitByHash(commitHash);
     if (!baseCommit) {
       console.error(`Commit ${commitHash} could not be found.`);
@@ -121,7 +121,7 @@ program
   )
   .option("-r, --repo <repoPath>", "path to Git repository")
   .action(async (commitHash: string, { repo = defaultRepoPath }: Command) => {
-    const stacker = constructStacker(repo, () => {});
+    const stacker = await constructStacker(repo, () => {});
     const baseCommit = await stacker.getCommitByHash(commitHash);
     if (!baseCommit) {
       console.error(`Commit ${commitHash} could not be found.`);
