@@ -8,7 +8,6 @@ import type {
   BranchName,
   Commit,
   CommitHash,
-  Repository,
   CommitSignature,
 } from "../shared/types";
 import type {
@@ -48,16 +47,37 @@ export class GitSourceControl implements SourceControl {
   ) {
     this.repoPath = repoPath;
     this.repositoryUpdateListener = repositoryUpdateListener;
-    this.populateGitSourceControl();
+    // this.loadIfChangesPresent();
   }
 
-  loadRepositoryInformation(): void {}
+  loadRepositoryInformation(): void {
+    // this.repositoryUpdateListener(this.repo);
+  }
 
-  private async populateGitSourceControl() {
+  private async loadIfChangesPresent() {
+    // If commitHashMap is populated or changes are not detected, we need to return
+    if (this.commitHashMap.size !== 0) {
+      return;
+    }
+    const repo = await nodegit.Repository.open(this.repoPath);
+    const repoStatus = await repo.getStatus();
+    if (repoStatus.length === 0) {
+      // No changes in repo, can return
+      return;
+    } else {
+      await this.populateGitSourceControl();
+    }
+    // Else we can call populate GitSourceControl
+  }
+
+  private async populateGitSourceControl(): Promise<void> {
     const repo = await nodegit.Repository.open(this.repoPath);
     const repoStatus = await repo.getStatus();
     const refs = await repo.getReferences();
-    const headHash = (await repo.getHeadCommit()).sha();
+    /* 
+      Can obtain headhash if required 
+      const headHash = (await repo.getHeadCommit()).sha();
+    */
     const branchCommits = await Promise.all(
       refs.map(async (ref: nodegit.Reference) => repo.getBranchCommit(ref)),
     );
@@ -170,6 +190,8 @@ export class GitSourceControl implements SourceControl {
       });
     });
 
+    // Inject branch names
+
     this.commitHashMap = produce(this.commitHashMap, (draftCommitHashMap) => {
       refs.forEach((ref) => {
         const branchName = ref.name();
@@ -178,62 +200,30 @@ export class GitSourceControl implements SourceControl {
       });
     });
 
-    // Inject branch names
-
+    /*
+      Can use Repo Status to see if there are any uncommitted changes
+      Can find the earliest interesting commit
     const hasUncommittedChanges = repoStatus.length > 0;
     const earliestInterestingCommit = this.commitHashMap.get(
       commonAncestorCommitOid.tostrS(),
     )!;
+    */
 
-    const ourRepository: Repository = {
-      path: this.repoPath,
-      hasUncommittedChanges,
-      headHash,
-      earliestInterestingCommit,
-      commits: this.commitHashMap,
-    };
-
-    const getRemoteRepoInfo = async (
-      ourRepository: Repository,
-    ): Promise<Repository> => {
-      const remoteUpdatedCommitHashMap = await produce(
-        ourRepository.commits,
-        async (draftCommitHashMap) => {
-          // Get all commits with local branches
-          const allCommitsWithBranches = Array.from(
-            draftCommitHashMap.values(),
-          ).filter((commit) => commit.refNames.filter(refIsLocal).length !== 0);
-
-          // Look up PR information for them and inject their information
-          await Promise.all(
-            allCommitsWithBranches.map(async (commit) => {
-              // TODO: Implement this.getPullRequestInfo
-              commit.pullRequestInfo = await this.getPullRequestInfo(
-                this.repoPath,
-                commit.hash,
-                // TODO: Handle commits with multiple PRs
-                commit.refNames.filter(refIsLocal)[0],
-              );
-            }),
-          );
-        },
-      );
-      const updatedRepository = {
-        ...ourRepository,
-        commits: remoteUpdatedCommitHashMap,
-      };
-      return updatedRepository;
-    };
-
-    return {
-      repo: ourRepository,
-      remoteRepoInfoPromise: getRemoteRepoInfo(ourRepository),
-    };
+    /*
+     *  This function can return the following data points
+     *  const ourRepository: Repository = {
+     *  path: this.repoPath,
+     *  hasUncommittedChanges,
+     *  headHash,
+     *  earliestInterestingCommit,
+     *  commits: this.commitHashMap,
+     *};
+     */
   }
 
-  async getCommitByHash(hash: CommitHash): Promise<Commit | undefined> {
+  async getCommitByHash(hash: CommitHash): Promise<Commit | null> {
     // TODO: Implement for partial match
-    return this.commitHashMap.get(hash);
+    return this.commitHashMap.get(hash) ?? null;
   }
 
   async rebaseCommits(

@@ -82,7 +82,7 @@ program
         console.error(`Commit ${rebaseTargetCommitHash} could not be found.`);
         return;
       }
-      await stacker.rebaseCommits(rebaseRootCommit, targetCommit);
+      await stacker.rebaseCommits(rebaseRootCommitHash, rebaseTargetCommitHash);
     },
   );
 

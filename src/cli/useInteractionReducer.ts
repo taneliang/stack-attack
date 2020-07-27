@@ -422,7 +422,7 @@ function stateForRebaseMode(state: State): State {
             const rebaseTarget = commits[focusedCommitIndex];
 
             stacker
-              .rebaseCommits(rebaseRoot.commit, rebaseTarget.commit)
+              .rebaseCommits(rebaseRoot.commit.hash, rebaseTarget.commit.hash)
               .then(() => reload());
             return state;
           },
