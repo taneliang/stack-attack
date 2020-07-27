@@ -83,7 +83,7 @@ export class ConcreteStacker implements Stacker {
       stack.push(nextCommit);
       const childCommits: Commit[] = [];
       nextCommit.childCommits.forEach((commitHash) => {
-        this.sourceControl.getCommitByHash(commitHash);
+        const commit = this.sourceControl.getCommitByHash(commitHash);
       });
       nextCommits.push(...childCommits);
     }
@@ -138,7 +138,10 @@ export class ConcreteStacker implements Stacker {
     let commitPrInfoPairs: { commit?: Commit; prInfo: PullRequestInfo }[] = [];
     stack.forEach(async (commit) => {
       let PRInfo = await this.collaborationPlatform.getPRForCommit(commit);
-      commitPrInfoPairs.push({ commit: commit, prInfo: PRInfo });
+      if(PRInfo !== null)
+      { 
+        commitPrInfoPairs.push({ commit: commit, prInfo: PRInfo });
+      }
     });
     return this.collaborationPlatform.updatePRDescriptionsForCommitGraph(
       commitPrInfoPairs,

@@ -9,7 +9,7 @@ export interface CollaborationPlatform {
   /**
    * Get PR info for a particular commit.
    */
-  getPRForCommit(commit: Commit): Promise<PullRequestInfo>;
+  getPRForCommit(commit: Commit): Promise<PullRequestInfo | null>;
 
   /**
    * Get PR info given a PR number.
@@ -48,6 +48,4 @@ export interface CollaborationPlatform {
   updatePRDescriptionsForCommitGraph(
     commitPrInfoPairs: { commit?: Commit; prInfo: PullRequestInfo }[],
   ): Promise<void>;
-
-  getPRStack()
 }

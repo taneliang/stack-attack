@@ -21,7 +21,6 @@ export class GitHubCollaborationPlatform implements CollaborationPlatform {
   }
   private octokit = getOctokit(this.repoPath);
 
-<<<<<<< HEAD
   async getPRForCommit(commit: Commit): Promise<PullRequestInfo | null> {
     const {
       data,
@@ -38,11 +37,6 @@ export class GitHubCollaborationPlatform implements CollaborationPlatform {
       description: prResult.body,
       isOutdated: prResult.head.sha !== commit.hash,
     };
-=======
-  async getPRForCommit(commit: Commit): Promise<PullRequestInfo> {
-    // TODO: Implement
-    return {number:1, url:"", title:"", description: "", isOutdated:false}
->>>>>>> stacker: implement updatePRDescriptionsForCompleteTreeContainingCommit
   }
 
   async getPR(prNumber: PullRequestID): Promise<PullRequestInfo | null> {
