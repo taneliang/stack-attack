@@ -6,28 +6,6 @@ import type {
 } from "../shared/types";
 import type { CollaborationPlatform } from "./CollaborationPlatform";
 import { getOctokit } from "./OctokitAuth";
-import nodegit from "nodegit";
-
-async function repoPathToOwnerAndRepo(
-  repoPath: string,
-): Promise<{ owner: string; repo: string }> {
-  const repoResult = await nodegit.Repository.open(repoPath);
-  // TODO: Handle remotes that are not named "origin"
-  const remoteResult = await repoResult.getRemote("origin");
-  const remoteUrl = remoteResult.url();
-  // Sample URLs:
-  // "https://github.com/taneliang/stack-attack"
-  // "git@github.com:taneliang/stack-attack.git"
-  // "git@github.com:taneliang/hello.world"
-  const [rawRepo, owner] = remoteUrl
-    .split("/")
-    .flatMap((s) => s.split(":"))
-    .reverse();
-  const repo = rawRepo.endsWith(".git")
-    ? rawRepo.substr(0, rawRepo.length - 4)
-    : rawRepo;
-  return { owner, repo };
-}
 
 export class GitHubCollaborationPlatform implements CollaborationPlatform {
   private repoPath: string;
