@@ -62,7 +62,7 @@ export class GitHubCollaborationPlatform implements CollaborationPlatform {
     }[],
   ): Promise<Commit[]> {
     let commitArr = new Array();
-    commitBranchPairs.forEach(async (element) => {
+    commitsWithMetadata.forEach(async (element) => {
       //If the commit has an existing PR, don't create one, but update title + base branch
       const prResult = await this.getPRForCommit(element.commit);
       if (prResult !== null) {
