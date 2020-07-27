@@ -21,9 +21,8 @@ function isSttackBranch(branch: BranchName): boolean {
 
 function createSttackBranch(commit: Commit): BranchName {
   //TODO: Implement slug generation
-  return ""; 
+  return "";
 }
-
 
 export class GitSourceControl implements SourceControl {
   private repoPath: string;

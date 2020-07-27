@@ -10,7 +10,7 @@ export interface PullRequestInfo {
   // TODO: Move this into a function?
   dependencies?: PullRequestID[];
 
-  isOutdated: boolean;
+  isOutdated?: boolean;
 }
 
 export type CommitHash = string;

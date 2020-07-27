@@ -31,7 +31,11 @@ export interface CollaborationPlatform {
    * @see updatePRDescriptionsForCommitGraph
    */
   createOrUpdatePRForCommits(
-    commitBranchPairs: { commit: Commit; branch: BranchName }[],
+    commitsWithMetadata: {
+      commit: Commit;
+      headBranch: BranchName;
+      baseBranch: BranchName;
+    }[],
   ): Promise<Commit[]>;
 
   /**
