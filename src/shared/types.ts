@@ -47,5 +47,5 @@ export interface Repository {
   /**
    * All relevant commits in the repository.
    */
-  commits: Map<string, Commit>;
+  commits: Map<CommitHash, Commit>;
 }

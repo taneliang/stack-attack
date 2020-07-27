@@ -73,7 +73,10 @@ function backendCommitGraphToDisplayCommits(
     hasFork: boolean,
   ): DisplayCommit[] {
     const childCommits = subgraphBackendRootCommit.childCommits.map(
-      (childCommitHash) => repository.commits[childCommitHash],
+      /*  SEE - Changes from Object Ref to Map.get, making the retutn type Commit | undefined. 
+      Adding a `!` here to get rid of TS errors
+      */
+      (childCommitHash) => repository.commits.get(childCommitHash)!,
     );
     const sortedChildren = childCommits.sort((a, b) =>
       a.timestamp > b.timestamp ? 1 : -1,

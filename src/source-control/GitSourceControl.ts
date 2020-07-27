@@ -39,7 +39,7 @@ export class GitSourceControl implements SourceControl {
   private repoPath: string;
 
   repositoryUpdateListener: SourceControlRepositoryUpdateListener;
-  private commitHashMap = new Map<string, Commit>();
+  private commitHashMap = new Map<CommitHash, Commit>();
 
   constructor(
     repoPath: string,
