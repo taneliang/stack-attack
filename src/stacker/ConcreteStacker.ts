@@ -115,7 +115,7 @@ export class ConcreteStacker implements Stacker {
       commitsWithMetaData.push({
         commit: commitBranchPair.commit,
         headBranch: commitBranchPair.sttackBranch,
-        baseBranch: "master",
+        baseBranch: "master", //TODO: Implement retrieval of base branch for a given commit
       });
     });
     this.collaborationPlatform.createOrUpdatePRForCommits(commitsWithMetaData);
