@@ -9,6 +9,7 @@ import type {
   Commit,
   CommitHash,
   CommitSignature,
+  Repository,
 } from "../shared/types";
 import type {
   SourceControl,
@@ -37,6 +38,8 @@ function createSttackBranch(): BranchName {
 
 export class GitSourceControl implements SourceControl {
   private repoPath: string;
+  // Repo has to exist whenever called; We add a loadIfChangesPresent check before any major mishap
+  private repo!: Repository;
 
   repositoryUpdateListener: SourceControlRepositoryUpdateListener;
   private commitHashMap = new Map<CommitHash, Commit>();
@@ -47,16 +50,20 @@ export class GitSourceControl implements SourceControl {
   ) {
     this.repoPath = repoPath;
     this.repositoryUpdateListener = repositoryUpdateListener;
-    // this.loadIfChangesPresent();
+  }
+
+  async getRepo(): Promise<Repository> {
+    await this.loadIfChangesPresent();
+    return this.repo;
   }
 
   loadRepositoryInformation(): void {
-    // this.repositoryUpdateListener(this.repo);
+    this.repositoryUpdateListener(this.repo);
   }
 
   private async loadIfChangesPresent() {
     // If commitHashMap is populated or changes are not detected, we need to return
-    if (this.commitHashMap.size !== 0) {
+    if (!this.repo) {
       return;
     }
     const repo = await nodegit.Repository.open(this.repoPath);
@@ -66,6 +73,7 @@ export class GitSourceControl implements SourceControl {
       return;
     } else {
       await this.populateGitSourceControl();
+      this.loadRepositoryInformation();
     }
     // Else we can call populate GitSourceControl
   }
@@ -74,10 +82,8 @@ export class GitSourceControl implements SourceControl {
     const repo = await nodegit.Repository.open(this.repoPath);
     const repoStatus = await repo.getStatus();
     const refs = await repo.getReferences();
-    /* 
-      Can obtain headhash if required 
-      const headHash = (await repo.getHeadCommit()).sha();
-    */
+    const headHash = (await repo.getHeadCommit()).sha();
+    const hashMap = new Map<CommitHash, Commit>();
     const branchCommits = await Promise.all(
       refs.map(async (ref: nodegit.Reference) => repo.getBranchCommit(ref)),
     );
@@ -124,7 +130,7 @@ export class GitSourceControl implements SourceControl {
 
             // If the commit is already in `commitHashDict`, stop because we
             // have already processed it.
-            if (this.commitHashMap.has(sha)) {
+            if (hashMap.has(sha)) {
               stopped = true;
               return;
             }
@@ -146,7 +152,7 @@ export class GitSourceControl implements SourceControl {
               childCommits: [],
             };
             // Use Immer?
-            this.commitHashMap.set(sha, newCommit);
+            hashMap.set(sha, newCommit);
 
             // Update the commit's children.
             const parentHashes = nodegitCommit
@@ -173,57 +179,63 @@ export class GitSourceControl implements SourceControl {
 
     // Build relationships
     commitChildrenMap.forEach((childrenHashes, parentHash) => {
-      this.commitHashMap = produce(this.commitHashMap, (draftCommitHashMap) => {
-        const parentCommit = draftCommitHashMap.get(parentHash);
-        if (!parentCommit) {
-          return;
-        }
-        childrenHashes.forEach((childHash) => {
-          const childCommit: Commit = draftCommitHashMap.get(childHash)!;
-          childCommit.parentCommits = Array.from(
-            new Set([...childCommit.parentCommits, parentHash]),
-          );
-          parentCommit.childCommits = Array.from(
-            new Set([...parentCommit.childCommits, childHash]),
-          );
-        });
+      const parentCommit = hashMap.get(parentHash);
+      if (!parentCommit) {
+        return;
+      }
+      childrenHashes.forEach((childHash) => {
+        const childCommit: Commit = hashMap.get(childHash)!;
+        childCommit.parentCommits = Array.from(
+          new Set([...childCommit.parentCommits, parentHash]),
+        );
+        parentCommit.childCommits = Array.from(
+          new Set([...parentCommit.childCommits, childHash]),
+        );
+        hashMap.set(childHash, childCommit);
       });
+      hashMap.set(parentHash, parentCommit);
     });
 
     // Inject branch names
 
-    this.commitHashMap = produce(this.commitHashMap, (draftCommitHashMap) => {
-      refs.forEach((ref) => {
-        const branchName = ref.name();
-        const branchSha = ref.target().tostrS();
-        draftCommitHashMap.get(branchSha)?.refNames.push(branchName);
-      });
+    refs.forEach((ref) => {
+      const branchName = ref.name();
+      const branchSha = ref.target().tostrS();
+      hashMap.get(branchSha)?.refNames.push(branchName);
     });
 
-    /*
-      Can use Repo Status to see if there are any uncommitted changes
-      Can find the earliest interesting commit
     const hasUncommittedChanges = repoStatus.length > 0;
-    const earliestInterestingCommit = this.commitHashMap.get(
+    // Earliest Interesting Commit must exist at this point
+    const earliestInterestingCommit = hashMap.get(
       commonAncestorCommitOid.tostrS(),
     )!;
-    */
 
-    /*
-     *  This function can return the following data points
-     *  const ourRepository: Repository = {
-     *  path: this.repoPath,
-     *  hasUncommittedChanges,
-     *  headHash,
-     *  earliestInterestingCommit,
-     *  commits: this.commitHashMap,
-     *};
-     */
+    const ourRepository: Repository = {
+      path: this.repoPath,
+      hasUncommittedChanges,
+      headHash,
+      earliestInterestingCommit,
+      commits: hashMap,
+    };
+
+    this.repo = ourRepository;
   }
 
   async getCommitByHash(hash: CommitHash): Promise<Commit | null> {
     // TODO: Implement for partial match
-    return this.commitHashMap.get(hash) ?? null;
+    const relatedCommits: Commit[] = [];
+    const keys = Array.from(this.repo.commits.keys());
+    keys.forEach((key) => {
+      if (key.indexOf(hash) !== -1) {
+        // If hash in key, as the key was from the commits' key, it should be present
+        relatedCommits.push(this.repo.commits.get(key)!);
+      }
+    });
+    if (relatedCommits.length !== 1) {
+      return null;
+    } else {
+      return relatedCommits[0];
+    }
   }
 
   async rebaseCommits(
@@ -231,6 +243,7 @@ export class GitSourceControl implements SourceControl {
     targetCommit: CommitHash,
   ): Promise<void> {
     const repo = await nodegit.Repository.open(this.repoPath);
+    await this.loadIfChangesPresent();
     const tempBranchName = `sttack-${lorem.slug(3)}`;
     const queue: string[] = [rebaseRootCommit];
     // 1. Rebase root commit on target commit
@@ -241,8 +254,8 @@ export class GitSourceControl implements SourceControl {
     while (queue.length) {
       const hashToBeRebased = queue.pop();
       // This rebase commit must exist
-      const baseCommitSttack = this.commitHashMap.get(hashToBeRebased!)!;
-      const targetCommitSttack = this.commitHashMap.get(targetCommit!)!;
+      const baseCommitSttack = this.repo.commits.get(hashToBeRebased!)!;
+      const targetCommitSttack = this.repo.commits.get(targetCommit!)!;
 
       const targetCommitOid = nodegit.Oid.fromString(targetCommit);
       const originalNodegitCommit = await nodegit.Commit.lookup(
@@ -302,7 +315,7 @@ export class GitSourceControl implements SourceControl {
       queue.push(...baseCommitSttack.childCommits);
 
       // Update refs in our hashMap
-      this.commitHashMap = produce(this.commitHashMap, (draftCommitHashMap) => {
+      this.repo.commits = produce(this.repo.commits, (draftCommitHashMap) => {
         const childrenOfTargetCommit = targetCommitSttack.childCommits;
         const newCommitToInsert: Commit = {
           hash: newCommitOid.tostrS(),
@@ -333,7 +346,7 @@ export class GitSourceControl implements SourceControl {
     }
     // Remove temp branch
     nodegit.Branch.delete(await repo.getBranch(tempBranchName));
-    // SEE: Call loadRepository? How?
+    await this.loadIfChangesPresent();
   }
 
   async pushCommit(commit: Commit): Promise<void> {
@@ -394,10 +407,10 @@ export class GitSourceControl implements SourceControl {
       const commit = queue.pop()!;
       await this.pushCommit(commit);
       queue.push(
-        ...commit.childCommits.map((hash) => this.commitHashMap.get(hash)!),
+        ...commit.childCommits.map((hash) => this.repo.commits.get(hash)!),
       );
     }
-    // SEE: Call Load Repository Information
+    await this.loadIfChangesPresent();
   }
 
   async attachSttackBranchesToCommits(
@@ -420,8 +433,8 @@ export class GitSourceControl implements SourceControl {
         if (branch.length == 0) {
           branch = createSttackBranch();
           await repo.createBranch(branch, commit.hash, true);
-          this.commitHashMap = produce(
-            this.commitHashMap,
+          this.repo.commits = produce(
+            this.repo.commits,
             (draftCommitHashMap) => {
               const commitToUpdate = draftCommitHashMap.get(commit.hash)!;
               commitToUpdate.refNames = Array.from(
@@ -434,6 +447,7 @@ export class GitSourceControl implements SourceControl {
         commitBranchPairs.push({ commit: commit, sttackBranch: branch });
       }),
     );
+    await this.loadIfChangesPresent();
     return commitBranchPairs;
   }
 }

@@ -69,4 +69,10 @@ export interface SourceControl {
   attachSttackBranchesToCommits(
     commits: Commit[],
   ): Promise<Array<{ commit: Commit; sttackBranch: BranchName }>>;
+
+  /**
+   * Getter for Repo from Source Control
+   * @returns Promise that resolves into the repository
+   */
+  getRepo(): Promise<Repository>;
 }
