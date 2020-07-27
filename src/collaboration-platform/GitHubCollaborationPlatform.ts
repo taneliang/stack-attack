@@ -55,7 +55,7 @@ export class GitHubCollaborationPlatform implements CollaborationPlatform {
   }
 
   async createOrUpdatePRForCommits(
-    commitBranchPairs: {
+    commitsWithMetadata: {
       commit: Commit;
       headBranch: BranchName;
       baseBranch: BranchName;
