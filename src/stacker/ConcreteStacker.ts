@@ -3,6 +3,7 @@ import type {
   Repository,
   CommitHash,
   PullRequestInfo,
+  BranchName,
 } from "../shared/types";
 import type {
   SourceControl,
@@ -62,14 +63,27 @@ export class ConcreteStacker implements Stacker {
     const commitBranchPairs = await this.sourceControl.attachSttackBranchesToCommits(
       [commit],
     );
-    //TODO: Implemenet createOrUpdatePRForCommits with new parameters
-    // const commits = this.collaborationPlatform.createOrUpdatePRForCommits(commitBranchPairs);
+    const commitsWithMetaData: Array<{
+      commit: Commit;
+      headBranch: BranchName;
+      baseBranch: BranchName;
+    }> = [];
+    commitBranchPairs.forEach((commitBranchPair) => {
+      commitsWithMetaData.push({
+        commit: commitBranchPair.commit,
+        headBranch: commitBranchPair.sttackBranch,
+        baseBranch: "master",
+      });
+    });
+    const commits = this.collaborationPlatform.createOrUpdatePRForCommits(
+      commitsWithMetaData,
+    );
   }
 
   async createOrUpdatePRContentsForCommitTreeRootedAtCommit(
     commit: Commit,
   ): Promise<void> {
-    // TODO: 1. Find all commits in the tree rooted at this commit.
+    // 1. Find all commits in the tree rooted at this commit.
 
     // Some old code from useInteractionReducer that gets a stack rooted at
     // `commit`s is below. It may be possible to update this to work with the
@@ -92,8 +106,19 @@ export class ConcreteStacker implements Stacker {
     const commitBranchPairs = await this.sourceControl.attachSttackBranchesToCommits(
       stack,
     );
-    // TODO: call createOrUpdatePRForCommits from GHCP with base = master , head = sttack branch name
-
+    const commitsWithMetaData: Array<{
+      commit: Commit;
+      headBranch: BranchName;
+      baseBranch: BranchName;
+    }> = [];
+    commitBranchPairs.forEach((commitBranchPair) => {
+      commitsWithMetaData.push({
+        commit: commitBranchPair.commit,
+        headBranch: commitBranchPair.sttackBranch,
+        baseBranch: "master",
+      });
+    });
+    this.collaborationPlatform.createOrUpdatePRForCommits(commitsWithMetaData);
     // 3. Update PR descriptions for all stacked PRs related to this commit.
     await this.updatePRDescriptionsForCompleteTreeContainingCommit(commit);
   }
@@ -138,8 +163,7 @@ export class ConcreteStacker implements Stacker {
     let commitPrInfoPairs: { commit?: Commit; prInfo: PullRequestInfo }[] = [];
     stack.forEach(async (commit) => {
       let PRInfo = await this.collaborationPlatform.getPRForCommit(commit);
-      if(PRInfo !== null)
-      { 
+      if (PRInfo !== null) {
         commitPrInfoPairs.push({ commit: commit, prInfo: PRInfo });
       }
     });
