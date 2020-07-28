@@ -2,6 +2,7 @@ import type {
   Commit,
   Repository,
   CommitHash,
+  PullRequestInfo,
   BranchName,
 } from "../shared/types";
 import type {
@@ -47,7 +48,7 @@ export class ConcreteStacker implements Stacker {
   }
 
   loadRepositoryInformation(): void {
-    // TODO: Implement
+    this.sourceControl.loadRepositoryInformation();
   }
 
   getCommitByHash(hash: CommitHash): Promise<Commit | null> {
@@ -62,30 +63,48 @@ export class ConcreteStacker implements Stacker {
     const commitBranchPairs = await this.sourceControl.attachSttackBranchesToCommits(
       [commit],
     );
-    //TODO: Implemenet createOrUpdatePRForCommits with new parameters
-    // const commits = this.collaborationPlatform.createOrUpdatePRForCommits(commitBranchPairs);
+    const commitsWithMetaData = commitBranchPairs.map((commitBranchPair) => ({
+      commit: commitBranchPair.commit,
+      headBranch: commitBranchPair.sttackBranch,
+      baseBranch: "master", // TODO: Implement retrieval of base branch for a given commit
+    }));
+    const commits = this.collaborationPlatform.createOrUpdatePRForCommits(
+      commitsWithMetaData,
+    );
   }
 
   async createOrUpdatePRContentsForCommitTreeRootedAtCommit(
     commit: Commit,
   ): Promise<void> {
-    // TODO: 1. Find all commits in the tree rooted at this commit.
+    // 1. Find all commits in the tree rooted at this commit.
 
     // Some old code from useInteractionReducer that gets a stack rooted at
     // `commit`s is below. It may be possible to update this to work with the
     // new `childCommit` hashes (as it used to be `Commit` objects) and also
     // adapt this to operate on trees.
 
-    // const stack = [];
-    // const nextCommits = [commit];
-    // while (nextCommits.length) {
-    //   const nextCommit = nextCommits.pop()!;
-    //   stack.push(nextCommit);
-    //   nextCommits.push(...nextCommit.childCommits);
-    // }
+    const stack = [];
+    const nextCommits = [commit];
+    while (nextCommits.length) {
+      const nextCommit = nextCommits.pop()!;
+      stack.push(nextCommit);
+      const childCommits: Commit[] = [];
+      nextCommit.childCommits.forEach((commitHash) => {
+        const commit = this.sourceControl.getCommitByHash(commitHash);
+      });
+      nextCommits.push(...childCommits);
+    }
 
-    // TODO: 2. Create or update PRs for all these commits.
-
+    // 2. Create or update PRs for all these commits.
+    const commitBranchPairs = await this.sourceControl.attachSttackBranchesToCommits(
+      stack,
+    );
+    const commitsWithMetaData = commitBranchPairs.map((commitBranchPair) => ({
+      commit: commitBranchPair.commit,
+      headBranch: commitBranchPair.sttackBranch,
+      baseBranch: "master", // TODO: Implement retrieval of base branch for a given commit
+    }));
+    this.collaborationPlatform.createOrUpdatePRForCommits(commitsWithMetaData);
     // 3. Update PR descriptions for all stacked PRs related to this commit.
     await this.updatePRDescriptionsForCompleteTreeContainingCommit(commit);
   }
@@ -115,6 +134,27 @@ export class ConcreteStacker implements Stacker {
   private async updatePRDescriptionsForCompleteTreeContainingCommit(
     commit: Commit,
   ): Promise<void> {
-    // TODO: Implement
+    const stack = [];
+    const nextCommits = [commit];
+    while (nextCommits.length) {
+      const nextCommit = nextCommits.pop()!;
+      stack.push(nextCommit);
+      const childCommits: Commit[] = [];
+      nextCommit.childCommits.forEach((commitHash) => {
+        this.sourceControl.getCommitByHash(commitHash);
+      });
+      nextCommits.push(...childCommits);
+    }
+    //TODO: Implement a complete version of the stack that start from the merge-base commit and also takes into consideration landed PRs
+    const commitPrInfoPairs: { commit?: Commit; prInfo: PullRequestInfo }[] = [];
+    stack.forEach(async (commit) => {
+      const prInfo = await this.collaborationPlatform.getPRForCommit(commit);
+      if (prInfo !== null) {
+        commitPrInfoPairs.push({ commit, prInfo });
+      }
+    });
+    return this.collaborationPlatform.updatePRDescriptionsForCommitGraph(
+      commitPrInfoPairs,
+    );
   }
 }
