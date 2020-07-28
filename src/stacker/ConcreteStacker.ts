@@ -48,7 +48,7 @@ export class ConcreteStacker implements Stacker {
   }
 
   loadRepositoryInformation(): void {
-    return this.sourceControl.loadRepositoryInformation();
+    this.sourceControl.loadRepositoryInformation();
   }
 
   getCommitByHash(hash: CommitHash): Promise<Commit | null> {
