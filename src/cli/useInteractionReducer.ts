@@ -73,8 +73,7 @@ function backendCommitGraphToDisplayCommits(
     hasFork: boolean,
   ): DisplayCommit[] {
     const childCommits = subgraphBackendRootCommit.childCommits.map(
-      /*  SEE - Since the commits came from the graph, childCommitHash must exist in repository.commits.
-       */
+      // Since the commits came from the graph, childCommitHash must exist in repository.commits.
       (childCommitHash) => repository.commits.get(childCommitHash)!,
     );
     const sortedChildren = childCommits.sort((a, b) =>

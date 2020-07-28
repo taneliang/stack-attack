@@ -42,7 +42,6 @@ export class GitSourceControl implements SourceControl {
   private repo!: Repository;
 
   repositoryUpdateListener: SourceControlRepositoryUpdateListener;
-  private commitHashMap = new Map<CommitHash, Commit>();
 
   constructor(
     repoPath: string,
@@ -67,10 +66,10 @@ export class GitSourceControl implements SourceControl {
       // No changes in repo, can return
       return;
     } else {
+      // Else we can call populate GitSourceControl
       await this.populateGitSourceControl();
       this.loadRepositoryInformation();
     }
-    // Else we can call populate GitSourceControl
   }
 
   private async populateGitSourceControl(): Promise<void> {
@@ -78,7 +77,7 @@ export class GitSourceControl implements SourceControl {
     const repoStatus = await repo.getStatus();
     const refs = await repo.getReferences();
     const headHash = (await repo.getHeadCommit()).sha();
-    const hashMap = new Map<CommitHash, Commit>();
+    const commitHashMap = new Map<CommitHash, Commit>();
     const branchCommits = await Promise.all(
       refs.map(async (ref: nodegit.Reference) => repo.getBranchCommit(ref)),
     );
@@ -106,9 +105,9 @@ export class GitSourceControl implements SourceControl {
      * This needs to exist as we can only retrieve a commit's parents, but we
      * actually want to build relationships with its children.
      *
-     * Commit hash keys *are not* guaranteed to exist in `commitHashDict`.
+     * Commit hash keys *are not* guaranteed to exist in `commitHashMap`.
      * Commit hashes in the sets *are* guaranteed to exist in
-     * `commitHashDict` as we traverse from children to parents.
+     * `commitHashMap` as we traverse from children to parents.
      */
     const commitChildrenMap = new Map<string, Set<string>>();
     await Promise.all(
@@ -123,9 +122,9 @@ export class GitSourceControl implements SourceControl {
             }
             const sha = nodegitCommit.sha();
 
-            // If the commit is already in `commitHashDict`, stop because we
+            // If the commit is already in `commitHashMap`, stop because we
             // have already processed it.
-            if (hashMap.has(sha)) {
+            if (commitHashMap.has(sha)) {
               stopped = true;
               return;
             }
@@ -135,7 +134,7 @@ export class GitSourceControl implements SourceControl {
               email: nodegitCommit.author().email(),
             };
 
-            // Create a new commit and add it to `commitHashDict`.
+            // Create a new commit and add it to `commitHashMap`.
             const newCommit: Commit = {
               title: nodegitCommit.summary(),
               hash: sha,
@@ -147,7 +146,7 @@ export class GitSourceControl implements SourceControl {
               childCommits: [],
             };
             // Use Immer?
-            hashMap.set(sha, newCommit);
+            commitHashMap.set(sha, newCommit);
 
             // Update the commit's children.
             const parentHashes = nodegitCommit
@@ -174,34 +173,36 @@ export class GitSourceControl implements SourceControl {
 
     // Build relationships
     commitChildrenMap.forEach((childrenHashes, parentHash) => {
-      const parentCommit = hashMap.get(parentHash);
+      const parentCommit = commitHashMap.get(parentHash);
       if (!parentCommit) {
         return;
       }
       childrenHashes.forEach((childHash) => {
-        const childCommit: Commit = hashMap.get(childHash)!;
-        childCommit.parentCommits = Array.from(
-          new Set([...childCommit.parentCommits, parentHash]),
-        );
-        parentCommit.childCommits = Array.from(
-          new Set([...parentCommit.childCommits, childHash]),
-        );
-        hashMap.set(childHash, childCommit);
+        const childCommit: Commit = commitHashMap.get(childHash)!;
+        if (!childCommit.parentCommits.includes(parentHash)) {
+          childCommit.parentCommits = [
+            ...childCommit.parentCommits,
+            parentHash,
+          ];
+        }
+        if (!parentCommit.childCommits.includes(parentHash)) {
+          parentCommit.childCommits = [...parentCommit.childCommits, childHash];
+        }
+        commitHashMap.set(childHash, childCommit);
       });
-      hashMap.set(parentHash, parentCommit);
+      commitHashMap.set(parentHash, parentCommit);
     });
 
     // Inject branch names
-
     refs.forEach((ref) => {
-      const branchName = ref.name();
+      const refName = ref.name();
       const branchSha = ref.target().tostrS();
-      hashMap.get(branchSha)?.refNames.push(branchName);
+      commitHashMap.get(branchSha)?.refNames.push(refName);
     });
 
     const hasUncommittedChanges = repoStatus.length > 0;
     // Earliest Interesting Commit must exist at this point
-    const earliestInterestingCommit = hashMap.get(
+    const earliestInterestingCommit = commitHashMap.get(
       commonAncestorCommitOid.tostrS(),
     )!;
 
@@ -210,7 +211,7 @@ export class GitSourceControl implements SourceControl {
       hasUncommittedChanges,
       headHash,
       earliestInterestingCommit,
-      commits: hashMap,
+      commits: commitHashMap,
     };
 
     this.repo = ourRepository;
@@ -248,9 +249,13 @@ export class GitSourceControl implements SourceControl {
 
     while (queue.length) {
       const hashToBeRebased = queue.pop();
-      // This rebase commit must exist
+      // Assumption : This commit has to exist in our repo else this function should crash?
       const baseCommitSttack = this.repo.commits.get(hashToBeRebased!)!;
       const targetCommitSttack = this.repo.commits.get(targetCommit!)!;
+
+      if (!baseCommitSttack || !targetCommitSttack) {
+        throw new Error("One of the commits selected does not exist");
+      }
 
       const targetCommitOid = nodegit.Oid.fromString(targetCommit);
       const originalNodegitCommit = await nodegit.Commit.lookup(
@@ -376,16 +381,7 @@ export class GitSourceControl implements SourceControl {
         commit.refNames.map(
           async (ref: string): Promise<number> => {
             return await remote.push([`${ref}:${ref}`], {
-              callbacks: {
-                credentials: function (_: string, userName: string) {
-                  return nodegit.Cred.sshKeyNew(
-                    userName,
-                    userPublicKeyPath, //"/Users/phuonganh/.ssh/id_rsa.pub",
-                    userPrivateKeyPath, //"/Users/phuonganh/.ssh/id_rsa",
-                    userPassphrase, //"hello",
-                  );
-                },
-              },
+              callbacks: callback,
             });
           },
         ),
@@ -398,7 +394,6 @@ export class GitSourceControl implements SourceControl {
   async pushCommitsForCommitTreeRootedAtCommit(commit: Commit): Promise<void> {
     const queue: Commit[] = [commit];
     while (queue.length) {
-      // SEE: Always have an element there
       const commit = queue.pop()!;
       await this.pushCommit(commit);
       queue.push(
