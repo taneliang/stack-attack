@@ -73,7 +73,8 @@ function backendCommitGraphToDisplayCommits(
     hasFork: boolean,
   ): DisplayCommit[] {
     const childCommits = subgraphBackendRootCommit.childCommits.map(
-      (childCommitHash) => repository.commits[childCommitHash],
+      // Since the commits came from the graph, childCommitHash must exist in repository.commits.
+      (childCommitHash) => repository.commits.get(childCommitHash)!,
     );
     const sortedChildren = childCommits.sort((a, b) =>
       a.timestamp > b.timestamp ? 1 : -1,
@@ -422,7 +423,7 @@ function stateForRebaseMode(state: State): State {
             const rebaseTarget = commits[focusedCommitIndex];
 
             stacker
-              .rebaseCommits(rebaseRoot.commit, rebaseTarget.commit)
+              .rebaseCommits(rebaseRoot.commit.hash, rebaseTarget.commit.hash)
               .then(() => reload());
             return state;
           },
