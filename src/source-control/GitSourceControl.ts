@@ -52,24 +52,17 @@ export class GitSourceControl implements SourceControl {
   }
 
   loadRepositoryInformation(): void {
-    this.repositoryUpdateListener(this.repo);
+    this.loadIfChangesPresent();
   }
 
   private async loadIfChangesPresent() {
-    // If commitHashMap is populated or changes are not detected, we need to return
+    // Only populate repo if we haven't loaded it yet
+    // TODO: Also repopulate if the repo has changed after we've first loaded
+    // it (somehow)
     if (!this.repo) {
-      return;
-    }
-    const repo = await nodegit.Repository.open(this.repoPath);
-    const repoStatus = await repo.getStatus();
-    if (repoStatus.length === 0) {
-      // No changes in repo, can return
-      return;
-    } else {
-      // Else we can call populate GitSourceControl
       await this.populateGitSourceControl();
-      this.loadRepositoryInformation();
     }
+    this.repositoryUpdateListener(this.repo);
   }
 
   private async populateGitSourceControl(): Promise<void> {

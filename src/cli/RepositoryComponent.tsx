@@ -79,7 +79,7 @@ const CommitInfo: React.FC<CommitInfoProps> = ({
           )}
         </Box>
         <Text>{title}</Text>
-        <Text color="blueBright">{author.toString()}</Text>
+        <Text color="blueBright">{author.name}</Text>
         {pullRequestInfo && (
           <Text color="green">
             {pullRequestInfo.url}
