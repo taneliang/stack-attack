@@ -10,6 +10,7 @@ import type {
   CommitHash,
   CommitSignature,
   Repository,
+  RefName,
 } from "../shared/types";
 import type {
   SourceControl,
@@ -18,13 +19,17 @@ import type {
 
 const localRefPrefix: string = "refs/heads/";
 
-function refIsLocal(refString: string): boolean {
+function refIsLocal(refString: RefName): boolean {
   return refString.startsWith(localRefPrefix);
 }
 
-function localRefToBranchName(refString: string): string {
+function localRefToBranchName(refString: RefName): BranchName {
   if (!refIsLocal(refString)) return refString;
   return refString.substr(localRefPrefix.length);
+}
+
+function branchNameToLocalRef(branchName: BranchName): RefName {
+  return `${localRefPrefix}${branchName}`;
 }
 
 function isSttackBranch(branch: BranchName): boolean {
@@ -32,8 +37,7 @@ function isSttackBranch(branch: BranchName): boolean {
 }
 
 function createSttackBranch(): BranchName {
-  const branchName: BranchName = `sttack-${lorem.slug(3)}`;
-  return branchName;
+  return `sttack-${lorem.slug(3)}`;
 }
 
 export class GitSourceControl implements SourceControl {
@@ -342,7 +346,7 @@ export class GitSourceControl implements SourceControl {
     await this.loadIfChangesPresent();
   }
 
-  async pushCommit(commit: Commit, sttackBranch : BranchName): Promise<void> {
+  async pushBranch(branchName: BranchName): Promise<void> {
     try {
       const {
         userPublicKeyPath,
@@ -368,33 +372,11 @@ export class GitSourceControl implements SourceControl {
           );
         },
       };
-      const connection = remote.connect(nodegit.Enums.DIRECTION.PUSH, callback);
-      await remote.push([`${sttackBranch}:${sttackBranch}`], {callbacks: callback});
-      // SEE: Can only push if branch exists on remote? How to find branch name here?
-      // await Promise.all(
-      //   commit.refNames.map(
-      //     async (ref: string): Promise<number> => {
-      //       return await remote.push([`${ref}:${ref}`], {
-      //         callbacks: callback,
-      //       });
-      //     },
-      //   ),
-      // );
+      const refName = branchNameToLocalRef(branchName);
+      await remote.push([`+${refName}:${refName}`], { callbacks: callback });
     } catch (err) {
       console.log(err);
     }
-  }
-
-  async pushCommitsForCommitTreeRootedAtCommit(commit: Commit): Promise<void> {
-    const queue: Commit[] = [commit];
-    while (queue.length) {
-      const commit = queue.pop()!;
-      await this.pushCommit(commit);
-      queue.push(
-        ...commit.childCommits.map((hash) => this.repo.commits.get(hash)!),
-      );
-    }
-    await this.loadIfChangesPresent();
   }
 
   async attachSttackBranchesToCommits(

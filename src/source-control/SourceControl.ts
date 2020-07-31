@@ -53,8 +53,7 @@ export interface SourceControl {
     targetCommit: CommitHash,
   ): Promise<void>;
 
-  pushCommit(commit: Commit, sttackBranch: BranchName): Promise<void>;
-  pushCommitsForCommitTreeRootedAtCommit(commit: Commit): Promise<void>;
+  pushBranch(branchName: BranchName): Promise<void>;
 
   /**
    * Turn random commits into Stack Attack-managed commits by attaching Stack

@@ -4,6 +4,7 @@ import type {
   Commit,
   PullRequestID,
   PullRequestInfo,
+  CommitHash,
 } from "../shared/types";
 import type { CollaborationPlatform } from "./CollaborationPlatform";
 import { getOctokit } from "./OctokitAuth";
@@ -32,6 +33,9 @@ export class GitHubCollaborationPlatform implements CollaborationPlatform {
       repo: this.repo,
       commit_sha: commit.hash,
     });
+    if (data.length === 0) {
+      return null;
+    }
     const prResult = data[0];
     return {
       number: prResult.number,
@@ -40,6 +44,30 @@ export class GitHubCollaborationPlatform implements CollaborationPlatform {
       description: prResult.body,
       isOutdated: prResult.head.sha !== commit.hash,
     };
+  }
+
+  private async getPRForBranchName(
+    branchName: BranchName,
+    commitHash: CommitHash, // TODO: This is ugly
+  ): Promise<PullRequestInfo | null> {
+    // TODO: Make this more efficient; it's getting a list of _all_ the PRs
+    const { data } = await this.octokit.pulls.list({
+      owner: this.owner,
+      repo: this.repo,
+    });
+    const prResult = data.find(
+      (pullRequest) => pullRequest.head.ref === branchName,
+    );
+    if (prResult) {
+      return {
+        number: prResult.number,
+        url: prResult.url,
+        title: prResult.title,
+        description: prResult.body,
+        isOutdated: prResult.head.sha !== commitHash,
+      };
+    }
+    return null;
   }
 
   async getPR(prNumber: PullRequestID): Promise<PullRequestInfo | null> {
@@ -64,33 +92,42 @@ export class GitHubCollaborationPlatform implements CollaborationPlatform {
       baseBranch: BranchName;
     }[],
   ): Promise<Commit[]> {
-    let commitArr = new Array();
-    commitsWithMetadata.forEach(async (element) => {
-      //If the commit has an existing PR, don't create one, but update title + base branch
-      const prResult = await this.getPRForCommit(element.commit);
-      if (prResult !== null) {
-        await this.octokit.pulls.update({
-          owner: this.owner,
-          repo: this.repo,
-          pull_number: prResult.number,
-          title: element.commit.title,
-          base: element.baseBranch,
-        });
-      }
-      //Else if the commit doesn't have an existing PR, create one
-      else {
-        await this.octokit.pulls.create({
-          owner: this.owner,
-          repo: this.repo,
-          title: element.commit.title,
-          head: element.headBranch,
-          base: element.baseBranch,
-          maintainer_can_modify: true,
-        });
-      }
-      commitArr.push(element.commit);
-    });
-    return commitArr;
+    return Promise.all(
+      commitsWithMetadata.map(async ({ commit, headBranch, baseBranch }) => {
+        // Find an existing PR for the commit or its branch.
+        let existingPullRequest = await this.getPRForCommit(commit);
+        if (!existingPullRequest) {
+          existingPullRequest = await this.getPRForBranchName(
+            headBranch,
+            commit.hash,
+          );
+        }
+
+        if (existingPullRequest) {
+          // If this commit has an associated PR, update its title and base branch.
+          await this.octokit.pulls.update({
+            owner: this.owner,
+            repo: this.repo,
+            pull_number: existingPullRequest.number,
+            title: commit.title,
+            base: baseBranch,
+          });
+        } else {
+          // Otherwise, create a PR for the commit
+          await this.octokit.pulls.create({
+            owner: this.owner,
+            repo: this.repo,
+            title: commit.title,
+            base: baseBranch,
+            head: headBranch,
+            maintainer_can_modify: true,
+          });
+        }
+
+        // TODO: Update commit so that we can update the frontend
+        return commit;
+      }),
+    );
   }
 
   async updatePRDescriptionsForCommitGraph(

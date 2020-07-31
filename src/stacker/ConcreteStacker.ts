@@ -62,31 +62,15 @@ export class ConcreteStacker implements Stacker {
   }
 
   async createOrUpdatePRContentsForSingleCommit(commit: Commit): Promise<void> {
-    const commitBranchPairs = await this.sourceControl.attachSttackBranchesToCommits(
-      [commit],
-    );
-    const commitsWithMetaData = commitBranchPairs.map((commitBranchPair) => ({
-      commit: commitBranchPair.commit,
-      headBranch: commitBranchPair.sttackBranch,
-      baseBranch: "master", // TODO: Implement retrieval of base branch for a given commit
-    }));
-    commitBranchPairs.forEach(async commitBranchPair => await this.sourceControl.pushCommit(commitBranchPair.commit, commitBranchPair.sttackBranch));
-    const commits = this.collaborationPlatform.createOrUpdatePRForCommits(
-      commitsWithMetaData,
-    );
+    await this.pushCommitsAndCreateOrUpdateBarePR([commit]);
+    await this.updatePRDescriptionsForCompleteTreeContainingCommit(commit);
   }
 
   async createOrUpdatePRContentsForCommitTreeRootedAtCommit(
     commit: Commit,
   ): Promise<void> {
-    // 1. Find all commits in the tree rooted at this commit.
-
-    // Some old code from useInteractionReducer that gets a stack rooted at
-    // `commit`s is below. It may be possible to update this to work with the
-    // new `childCommit` hashes (as it used to be `Commit` objects) and also
-    // adapt this to operate on trees.
-
-    const stack = [];
+    // Find all commits in the tree rooted at this commit.
+    const stack: Commit[] = [];
     const nextCommits = [commit];
     while (nextCommits.length) {
       const nextCommit = nextCommits.pop()!;
@@ -97,22 +81,36 @@ export class ConcreteStacker implements Stacker {
       });
       nextCommits.push(...childCommits);
     }
+    // COMBAK: WAS IST WRONG WITH DAS
 
-    // 2. Create or update PRs for all these commits.
+    await this.pushCommitsAndCreateOrUpdateBarePR(stack);
+    await this.updatePRDescriptionsForCompleteTreeContainingCommit(commit);
+  }
+
+  private async pushCommitsAndCreateOrUpdateBarePR(
+    commits: Commit[],
+  ): Promise<void> {
+    // Push all the commits' Stack Attack branches
     const commitBranchPairs = await this.sourceControl.attachSttackBranchesToCommits(
-      stack,
+      commits,
     );
-    commitBranchPairs.forEach(async commitBranchPair => await this.sourceControl.pushCommit(commitBranchPair.commit, commitBranchPair.sttackBranch));
+    await Promise.all(
+      commitBranchPairs.map(({ sttackBranch }) =>
+        this.sourceControl.pushBranch(sttackBranch),
+      ),
+    );
+
+    // Create or update PRs for all these commits.
     const commitsWithMetaData = commitBranchPairs.map((commitBranchPair) => ({
       commit: commitBranchPair.commit,
       headBranch: commitBranchPair.sttackBranch,
       baseBranch: "master", // TODO: Implement retrieval of base branch for a given commit
     }));
-    
-    this.collaborationPlatform.createOrUpdatePRForCommits(commitsWithMetaData);
-
-    // 3. Update PR descriptions for all stacked PRs related to this commit.
-    await this.updatePRDescriptionsForCompleteTreeContainingCommit(commit);
+    const updatedCommits = this.collaborationPlatform.createOrUpdatePRForCommits(
+      commitsWithMetaData,
+    );
+    // TODO: Pass updated commits back to GSC/our listener. Possible deeper
+    // issue: GSC caches its own `repo` but we want to augment it with PR info.
   }
 
   /**
@@ -156,12 +154,14 @@ export class ConcreteStacker implements Stacker {
       commit?: Commit;
       prInfo: PullRequestInfo;
     }[] = [];
-    stack.forEach(async (commit) => {
-      const prInfo = await this.collaborationPlatform.getPRForCommit(commit);
-      if (prInfo !== null) {
-        commitPrInfoPairs.push({ commit, prInfo });
-      }
-    });
+    await Promise.all(
+      stack.map(async (commit) => {
+        const prInfo = await this.collaborationPlatform.getPRForCommit(commit);
+        if (prInfo) {
+          commitPrInfoPairs.push({ commit, prInfo });
+        }
+      }),
+    );
     return this.collaborationPlatform.updatePRDescriptionsForCommitGraph(
       commitPrInfoPairs,
     );
