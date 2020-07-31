@@ -3,7 +3,6 @@ import type {
   Repository,
   CommitHash,
   PullRequestInfo,
-  BranchName,
 } from "../shared/types";
 import type {
   SourceControl,
@@ -149,7 +148,10 @@ export class ConcreteStacker implements Stacker {
       nextCommits.push(...childCommits);
     }
     //TODO: Implement a complete version of the stack that start from the merge-base commit and also takes into consideration landed PRs
-    const commitPrInfoPairs: { commit?: Commit; prInfo: PullRequestInfo }[] = [];
+    const commitPrInfoPairs: {
+      commit?: Commit;
+      prInfo: PullRequestInfo;
+    }[] = [];
     stack.forEach(async (commit) => {
       const prInfo = await this.collaborationPlatform.getPRForCommit(commit);
       if (prInfo !== null) {

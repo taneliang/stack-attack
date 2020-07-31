@@ -1,3 +1,4 @@
+import type { Octokit } from "@octokit/rest";
 import type {
   BranchName,
   Commit,
@@ -11,6 +12,8 @@ export class GitHubCollaborationPlatform implements CollaborationPlatform {
   private repoPath: string;
   private owner: string;
   private repo: string;
+  private octokit: Octokit;
+
   /**
    * @param repoPath Path to repository root.
    */
@@ -18,8 +21,8 @@ export class GitHubCollaborationPlatform implements CollaborationPlatform {
     this.repoPath = repoPath;
     this.owner = owner;
     this.repo = repo;
+    this.octokit = getOctokit(this.repoPath);
   }
-  private octokit = getOctokit(this.repoPath);
 
   async getPRForCommit(commit: Commit): Promise<PullRequestInfo | null> {
     const {

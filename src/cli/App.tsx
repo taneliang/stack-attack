@@ -1,18 +1,38 @@
-import type { Stacker } from "../stacker";
+import type { Stacker, StackerRepositoryUpdateListener } from "../stacker";
 import type { Repository } from "../shared/types";
 
-import React from "react";
+import React, { useCallback, useState, useEffect } from "react";
 import { Text } from "ink";
 import { RepositoryComponent } from "./RepositoryComponent";
+import { constructStacker } from "../shared/constructStacker";
 
 interface Props {
-  stacker: Stacker;
-  repository: Repository | null;
-  reload: () => void;
+  repoPath: string;
 }
 
-const App: React.FC<Props> = ({ stacker, repository, reload }) => {
-  if (!repository) {
+const App: React.FC<Props> = ({ repoPath }) => {
+  const [repository, setRepository] = useState<Repository | null>(null);
+  const [stacker, setStacker] = useState<Stacker | null>(null);
+
+  const repositoryUpdateListener: StackerRepositoryUpdateListener = useCallback(
+    (repo) => {
+      setRepository(repo);
+    },
+    [setRepository],
+  );
+
+  useEffect(() => {
+    constructStacker(repoPath, repositoryUpdateListener).then((newStacker) => {
+      newStacker.loadRepositoryInformation();
+      setStacker(newStacker);
+    });
+  }, [setStacker]);
+
+  const reload = useCallback(() => stacker?.loadRepositoryInformation(), [
+    stacker,
+  ]);
+
+  if (!stacker || !repository) {
     return <Text>Loading</Text>;
   }
 

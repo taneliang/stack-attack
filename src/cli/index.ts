@@ -1,8 +1,5 @@
 #!/usr/bin/env node
 
-import type { Repository } from "../shared/types";
-import type { StackerRepositoryUpdateListener } from "../stacker";
-
 import React from "react";
 import { render } from "ink";
 import { Command } from "commander";
@@ -37,23 +34,7 @@ program
   .description("Stack Attack's interactive terminal UI")
   .option("-r, --repo <repoPath>", "path to Git repository")
   .action(async ({ repo = defaultRepoPath }: Command) => {
-    console.log("repo", repo);
-
-    let repository: Repository | null = null;
-
-    const repositoryUpdateListener: StackerRepositoryUpdateListener = (
-      repo,
-    ) => {
-      repository = repo;
-    };
-    const stacker = await constructStacker(repo, repositoryUpdateListener);
-    stacker.loadRepositoryInformation();
-
-    function reload() {
-      stacker.loadRepositoryInformation();
-    }
-
-    render(React.createElement(App, { stacker, repository, reload }));
+    render(React.createElement(App, { repoPath: repo }));
   });
 
 program
