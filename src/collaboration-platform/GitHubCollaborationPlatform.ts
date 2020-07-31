@@ -46,9 +46,9 @@ export class GitHubCollaborationPlatform implements CollaborationPlatform {
     };
   }
 
-  private async getPRForBranchName(
+  async getPRForCommitByBranchName(
+    commitHash: CommitHash,
     branchName: BranchName,
-    commitHash: CommitHash, // TODO: This is ugly
   ): Promise<PullRequestInfo | null> {
     // TODO: Make this more efficient; it's getting a list of _all_ the PRs
     const { data } = await this.octokit.pulls.list({
@@ -94,26 +94,21 @@ export class GitHubCollaborationPlatform implements CollaborationPlatform {
   ): Promise<Commit[]> {
     return Promise.all(
       commitsWithMetadata.map(async ({ commit, headBranch, baseBranch }) => {
-        // Find an existing PR for the commit or its branch.
-        let existingPullRequest = await this.getPRForCommit(commit);
-        if (!existingPullRequest) {
-          existingPullRequest = await this.getPRForBranchName(
-            headBranch,
-            commit.hash,
-          );
-        }
+        const existingPullRequest = await this.getPRForCommitByBranchName(
+          commit.hash,
+          headBranch,
+        );
 
         if (existingPullRequest) {
-          // If this commit has an associated PR, update its title and base branch.
           await this.octokit.pulls.update({
             owner: this.owner,
             repo: this.repo,
             pull_number: existingPullRequest.number,
+            // Update the fields below
             title: commit.title,
             base: baseBranch,
           });
         } else {
-          // Otherwise, create a PR for the commit
           await this.octokit.pulls.create({
             owner: this.owner,
             repo: this.repo,

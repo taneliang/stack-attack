@@ -1,15 +1,12 @@
-import type {
-  Commit,
-  Repository,
-  CommitHash,
-  PullRequestInfo,
-} from "../shared/types";
+import type { Commit, Repository, CommitHash } from "../shared/types";
 import type {
   SourceControl,
   SourceControlRepositoryUpdateListener,
 } from "../source-control/SourceControl";
 import type { CollaborationPlatform } from "../collaboration-platform/CollaborationPlatform";
 import type { Stacker, StackerRepositoryUpdateListener } from "./Stacker";
+
+import nullthrows from "nullthrows";
 
 /**
  * A concrete implementation of the Stacker interface.
@@ -76,13 +73,16 @@ export class ConcreteStacker implements Stacker {
       const nextCommit = nextCommits.pop()!;
       stack.push(nextCommit);
       const childCommits: Commit[] = [];
-      nextCommit.childCommits.forEach(async (commitHash) => {
-        const commit = await this.sourceControl.getCommitByHash(commitHash);
-        if(commit) childCommits.push(commit);
-      });
+      await Promise.all(
+        nextCommit.childCommits.map(async (commitHash) => {
+          const childCommit = await this.sourceControl.getCommitByHash(
+            commitHash,
+          );
+          if (childCommit) childCommits.push(childCommit);
+        }),
+      );
       nextCommits.push(...childCommits);
     }
-    // COMBAK: WAS IST WRONG WITH DAS
 
     await this.pushCommitsAndCreateOrUpdateBarePR(stack);
     await this.updatePRDescriptionsForCompleteTreeContainingCommit(commit);
@@ -107,7 +107,7 @@ export class ConcreteStacker implements Stacker {
       headBranch: commitBranchPair.sttackBranch,
       baseBranch: "master", // TODO: Implement retrieval of base branch for a given commit
     }));
-    const updatedCommits = this.collaborationPlatform.createOrUpdatePRForCommits(
+    const updatedCommits = await this.collaborationPlatform.createOrUpdatePRForCommits(
       commitsWithMetaData,
     );
     // TODO: Pass updated commits back to GSC/our listener. Possible deeper
@@ -142,31 +142,46 @@ export class ConcreteStacker implements Stacker {
     const stack = [];
     const nextCommits = [commit];
     while (nextCommits.length) {
+      // Push commit onto stack
       const nextCommit = nextCommits.pop()!;
       stack.push(nextCommit);
-      const childCommits: Commit[] = [];
-      nextCommit.childCommits.forEach(async (commitHash) => {
-        const childCommit = await this.sourceControl.getCommitByHash(
-          commitHash,
-        );
-        if (childCommit) childCommits.push(childCommit);
-      });
+
+      // Find next commits
+      const nullableChildCommits = await Promise.all(
+        nextCommit.childCommits.map((commitHash) =>
+          this.sourceControl.getCommitByHash(commitHash),
+        ),
+      );
+      const childCommits = nullableChildCommits.map((commit) =>
+        nullthrows(
+          commit,
+          "Commit must exist if we got the commit from the repository.",
+        ),
+      );
       nextCommits.push(...childCommits);
     }
 
     //TODO: Implement a complete version of the stack that start from the merge-base commit and also takes into consideration landed PRs
-    const commitPrInfoPairs: {
-      commit?: Commit;
-      prInfo: PullRequestInfo;
-    }[] = [];
-    await Promise.all(
+    const commitNullablePrInfoPairs = await Promise.all(
       stack.map(async (commit) => {
-        const prInfo = await this.collaborationPlatform.getPRForCommit(commit);
-        if (prInfo) {
-          commitPrInfoPairs.push({ commit, prInfo });
-        }
+        const branchName = nullthrows(
+          this.sourceControl.getSttackBranchForCommit(commit),
+          "Violation of prerequisite: updatePRDescriptionsForCompleteTreeContainingCommit requires commits to have its Stack Attack branch already pushed to the remote.",
+        );
+        const prInfo = await this.collaborationPlatform.getPRForCommitByBranchName(
+          commit.hash,
+          branchName,
+        );
+        return { commit, prInfo };
       }),
     );
+    const commitPrInfoPairs = commitNullablePrInfoPairs
+      .filter(({ prInfo }) => !!prInfo) // Commits may not have PRs opened
+      .map(({ commit, prInfo }) => ({
+        commit,
+        prInfo: nullthrows(prInfo, "null prInfo should have been filtered out"),
+      }));
+
     return this.collaborationPlatform.updatePRDescriptionsForCommitGraph(
       commitPrInfoPairs,
     );

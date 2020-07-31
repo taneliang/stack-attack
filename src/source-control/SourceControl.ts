@@ -56,6 +56,12 @@ export interface SourceControl {
   pushBranch(branchName: BranchName): Promise<void>;
 
   /**
+   * Gets the Stack Attack branch for `commit` if the commit has one, otherwise
+   * returns null.
+   */
+  getSttackBranchForCommit(commit: Commit): BranchName | null;
+
+  /**
    * Turn random commits into Stack Attack-managed commits by attaching Stack
    * Attack branches to them. Commits that already have Stack Attack branches
    * will not be modified.

@@ -379,6 +379,15 @@ export class GitSourceControl implements SourceControl {
     }
   }
 
+  getSttackBranchForCommit(commit: Commit): BranchName | null {
+    for (const refName of commit.refNames) {
+      if (isSttackBranch(localRefToBranchName(refName))) {
+        return localRefToBranchName(refName);
+      }
+    }
+    return null;
+  }
+
   async attachSttackBranchesToCommits(
     commits: Commit[],
   ): Promise<Array<{ commit: Commit; sttackBranch: BranchName }>> {
@@ -390,13 +399,13 @@ export class GitSourceControl implements SourceControl {
     const repo = await nodegit.Repository.open(this.repoPath);
     await Promise.all(
       commits.map(async (commit) => {
-        let branch: BranchName = "";
-        commit.refNames.forEach((refName) => {
-          if (isSttackBranch(localRefToBranchName(refName))) {
-            branch = localRefToBranchName(refName);
-          }
-        });
-        if (branch.length == 0) {
+        let branch: BranchName | null = null;
+
+        // Use the existing sttack branch if it exists
+        branch = this.getSttackBranchForCommit(commit);
+
+        // Attach sttack branch otherwise
+        if (!branch) {
           branch = createSttackBranch();
           await repo.createBranch(branch, commit.hash, true);
           this.repo.commits = produce(
@@ -404,7 +413,7 @@ export class GitSourceControl implements SourceControl {
             (draftCommitHashMap) => {
               const commitToUpdate = draftCommitHashMap.get(commit.hash)!;
               commitToUpdate.refNames = Array.from(
-                new Set([...commitToUpdate.refNames, branch]),
+                new Set([...commitToUpdate.refNames, branch!]),
               );
               draftCommitHashMap.set(commit.hash, commitToUpdate);
             },
