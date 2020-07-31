@@ -70,6 +70,7 @@ export class ConcreteStacker implements Stacker {
       headBranch: commitBranchPair.sttackBranch,
       baseBranch: "master", // TODO: Implement retrieval of base branch for a given commit
     }));
+    commitBranchPairs.forEach(async commitBranchPair => await this.sourceControl.pushCommit(commitBranchPair.commit, commitBranchPair.sttackBranch));
     const commits = this.collaborationPlatform.createOrUpdatePRForCommits(
       commitsWithMetaData,
     );
@@ -101,12 +102,15 @@ export class ConcreteStacker implements Stacker {
     const commitBranchPairs = await this.sourceControl.attachSttackBranchesToCommits(
       stack,
     );
+    commitBranchPairs.forEach(async commitBranchPair => await this.sourceControl.pushCommit(commitBranchPair.commit, commitBranchPair.sttackBranch));
     const commitsWithMetaData = commitBranchPairs.map((commitBranchPair) => ({
       commit: commitBranchPair.commit,
       headBranch: commitBranchPair.sttackBranch,
       baseBranch: "master", // TODO: Implement retrieval of base branch for a given commit
     }));
+    
     this.collaborationPlatform.createOrUpdatePRForCommits(commitsWithMetaData);
+
     // 3. Update PR descriptions for all stacked PRs related to this commit.
     await this.updatePRDescriptionsForCompleteTreeContainingCommit(commit);
   }

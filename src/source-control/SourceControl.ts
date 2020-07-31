@@ -53,7 +53,7 @@ export interface SourceControl {
     targetCommit: CommitHash,
   ): Promise<void>;
 
-  pushCommit(commit: Commit): Promise<void>;
+  pushCommit(commit: Commit, sttackBranch: BranchName): Promise<void>;
   pushCommitsForCommitTreeRootedAtCommit(commit: Commit): Promise<void>;
 
   /**

@@ -342,7 +342,7 @@ export class GitSourceControl implements SourceControl {
     await this.loadIfChangesPresent();
   }
 
-  async pushCommit(commit: Commit): Promise<void> {
+  async pushCommit(commit: Commit, sttackBranch : BranchName): Promise<void> {
     try {
       const {
         userPublicKeyPath,
@@ -369,16 +369,17 @@ export class GitSourceControl implements SourceControl {
         },
       };
       const connection = remote.connect(nodegit.Enums.DIRECTION.PUSH, callback);
+      await remote.push([`${sttackBranch}:${sttackBranch}`], {callbacks: callback});
       // SEE: Can only push if branch exists on remote? How to find branch name here?
-      await Promise.all(
-        commit.refNames.map(
-          async (ref: string): Promise<number> => {
-            return await remote.push([`${ref}:${ref}`], {
-              callbacks: callback,
-            });
-          },
-        ),
-      );
+      // await Promise.all(
+      //   commit.refNames.map(
+      //     async (ref: string): Promise<number> => {
+      //       return await remote.push([`${ref}:${ref}`], {
+      //         callbacks: callback,
+      //       });
+      //     },
+      //   ),
+      // );
     } catch (err) {
       console.log(err);
     }
