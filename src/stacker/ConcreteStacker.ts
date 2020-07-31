@@ -76,8 +76,9 @@ export class ConcreteStacker implements Stacker {
       const nextCommit = nextCommits.pop()!;
       stack.push(nextCommit);
       const childCommits: Commit[] = [];
-      nextCommit.childCommits.forEach((commitHash) => {
-        const commit = this.sourceControl.getCommitByHash(commitHash);
+      nextCommit.childCommits.forEach(async (commitHash) => {
+        const commit = await this.sourceControl.getCommitByHash(commitHash);
+        if(commit) childCommits.push(commit);
       });
       nextCommits.push(...childCommits);
     }
@@ -144,11 +145,15 @@ export class ConcreteStacker implements Stacker {
       const nextCommit = nextCommits.pop()!;
       stack.push(nextCommit);
       const childCommits: Commit[] = [];
-      nextCommit.childCommits.forEach((commitHash) => {
-        this.sourceControl.getCommitByHash(commitHash);
+      nextCommit.childCommits.forEach(async (commitHash) => {
+        const childCommit = await this.sourceControl.getCommitByHash(
+          commitHash,
+        );
+        if (childCommit) childCommits.push(childCommit);
       });
       nextCommits.push(...childCommits);
     }
+
     //TODO: Implement a complete version of the stack that start from the merge-base commit and also takes into consideration landed PRs
     const commitPrInfoPairs: {
       commit?: Commit;
