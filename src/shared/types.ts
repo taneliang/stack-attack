@@ -31,7 +31,6 @@ export interface Commit {
   committer: CommitSignature;
 
   refNames: RefName[];
-  pullRequestInfo?: PullRequestInfo | undefined;
 
   parentCommits: CommitHash[];
   childCommits: CommitHash[];

@@ -211,19 +211,13 @@ export class GitSourceControl implements SourceControl {
   }
 
   async getCommitByHash(hash: CommitHash): Promise<Commit | null> {
-    // TODO: Implement for partial match
-    const relatedCommits: Commit[] = [];
-    const keys = Array.from(this.repo.commits.keys());
-    keys.forEach((key) => {
-      if (key.indexOf(hash) !== -1) {
-        // If hash in key, as the key was from the commits' key, it should be present
-        relatedCommits.push(this.repo.commits.get(key)!);
-      }
-    });
-    if (relatedCommits.length !== 1) {
+    try {
+      const repo = await nodegit.Repository.open(this.repoPath);
+      const commit = await nodegit.AnnotatedCommit.fromRevspec(repo, hash);
+      const completeCommitHash = commit.id().tostrS();
+      return this.repo.commits.get(completeCommitHash) || null;
+    } catch (err) {
       return null;
-    } else {
-      return relatedCommits[0];
     }
   }
 
