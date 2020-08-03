@@ -62,7 +62,6 @@ export class GitSourceControl implements SourceControl {
     if (!this.repo) {
       await this.populateGitSourceControl();
     }
-    console.log(this.repo.commits.get("7960f25"));
     this.repositoryUpdateListener(this.repo);
   }
 
@@ -192,10 +191,6 @@ export class GitSourceControl implements SourceControl {
       earliestInterestingCommit,
       commits: commitHashMap,
     };
-    fs.writeFileSync(
-      "commits.json",
-      JSON.stringify(Array.from(commitHashMap.values()), undefined, 4),
-    );
     this.repo = ourRepository;
   }
 
