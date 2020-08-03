@@ -62,6 +62,7 @@ export class GitSourceControl implements SourceControl {
     if (!this.repo) {
       await this.populateGitSourceControl();
     }
+    console.log(this.repo.commits.get("7960f25"));
     this.repositoryUpdateListener(this.repo);
   }
 
@@ -73,9 +74,6 @@ export class GitSourceControl implements SourceControl {
     const commitHashMap = new Map<CommitHash, Commit>();
     const branchCommits = await Promise.all(
       refs.map(async (ref: nodegit.Reference) => repo.getBranchCommit(ref)),
-    );
-    const branchNames: string[] = refs.map((ref: nodegit.Reference) =>
-      ref.name(),
     );
 
     // Compute the most recent common ancestor of all branches.
@@ -107,18 +105,12 @@ export class GitSourceControl implements SourceControl {
       refs.map((ref) => {
         return new Promise(async (resolve, _) => {
           const history = (await repo.getBranchCommit(ref)).history();
-          let stopped = false;
-
           history.on("commit", (nodegitCommit: nodegit.Commit) => {
-            if (stopped) {
-              return;
-            }
             const sha = nodegitCommit.sha();
 
             // If the commit is already in `commitHashMap`, stop because we
             // have already processed it.
             if (commitHashMap.has(sha)) {
-              stopped = true;
               return;
             }
 
@@ -138,7 +130,6 @@ export class GitSourceControl implements SourceControl {
               parentCommits: [],
               childCommits: [],
             };
-            // Use Immer?
             commitHashMap.set(sha, newCommit);
 
             // Update the commit's children.
@@ -151,11 +142,6 @@ export class GitSourceControl implements SourceControl {
               }
               commitChildrenMap.get(parentHash)!.add(sha);
             });
-
-            // Stop if this is the common ancestor commit
-            if (nodegitCommit.id().equal(commonAncestorCommitOid)) {
-              stopped = true;
-            }
           });
 
           history.on("end", () => resolve());
@@ -206,7 +192,10 @@ export class GitSourceControl implements SourceControl {
       earliestInterestingCommit,
       commits: commitHashMap,
     };
-
+    fs.writeFileSync(
+      "commits.json",
+      JSON.stringify(Array.from(commitHashMap.values()), undefined, 4),
+    );
     this.repo = ourRepository;
   }
 
