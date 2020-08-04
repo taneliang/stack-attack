@@ -199,8 +199,9 @@ export class GitSourceControl implements SourceControl {
       const repo = await nodegit.Repository.open(this.repoPath);
       const commit = await nodegit.AnnotatedCommit.fromRevspec(repo, hash);
       const completeCommitHash = commit.id().tostrS();
-      return this.repo.commits.get(completeCommitHash) || null;
+      return this.repo.commits.get(completeCommitHash) ?? null;
     } catch (err) {
+      console.log(err.message);
       return null;
     }
   }
