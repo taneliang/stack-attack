@@ -56,7 +56,7 @@ interface CommitInfoProps {
 }
 const CommitInfo: React.FC<CommitInfoProps> = ({
   displayCommit: {
-    commit: { hash, timestamp, title, author, refNames, pullRequestInfo },
+    commit: { hash, timestamp, title, author, refNames },
     isFocused,
     isBeingMoved,
   },
@@ -80,12 +80,12 @@ const CommitInfo: React.FC<CommitInfoProps> = ({
         </Box>
         <Text>{title}</Text>
         <Text color="blueBright">{author.name}</Text>
-        {pullRequestInfo && (
+        {/* {pullRequestInfo && (
           <Text color="green">
             {pullRequestInfo.url}
             {pullRequestInfo.isOutdated && <Text color="red"> OUTDATED</Text>}
           </Text>
-        )}
+        )} */}
       </Box>
     </Box>
   );
