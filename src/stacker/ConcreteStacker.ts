@@ -43,8 +43,10 @@ export class ConcreteStacker implements Stacker {
     );
   }
 
-  loadRepositoryInformation(): void {
-    this.sourceControl.loadRepositoryInformation();
+  async loadRepositoryInformation(): Promise<void> {
+    await this.sourceControl.loadRepositoryInformation();
+    // TODO: Find PR info to load Pr info
+    // TODDO: SLoad PR info
   }
 
   getCommitByHash(hash: CommitHash): Promise<Commit | null> {
@@ -140,9 +142,41 @@ export class ConcreteStacker implements Stacker {
     commit: Commit,
   ): Promise<void> {
     const stack = [];
-    const nextCommits = [commit];
+    //TODO: Implement a complete version of the stack that start from the merge-base commit and also takes into consideration landed PRs
+    const mergeBaseCommitHashes = await this.sourceControl.getMergeCommitByCommitHash(
+      commit,
+    ); //Question: what if the commit is on the same branch as the mergeBaseCommit?
+    //Should one not be looking for a merge base commit then? Description update stopped working, reason? Did I fuck up something? 
+    let parentCommitHashes = commit.parentCommits;
+    let currentCommitHash = commit.hash; 
+    let baseCommit;
+    while (parentCommitHashes.length) {
+      const parentCommitHash = parentCommitHashes.pop();
+      const baseCommitHash = mergeBaseCommitHashes.find(
+        (commitHash) => commitHash === parentCommitHash,
+      );
+      if (baseCommitHash) {
+        baseCommit = await this.sourceControl.getCommitByHash(currentCommitHash);
+        console.log("CURRENT COMMIT:", baseCommit);
+        break;
+      }
+      if (parentCommitHash) {
+        const parentCommit = await this.sourceControl.getCommitByHash(
+          parentCommitHash,
+        );
+        if (parentCommit && parentCommit.parentCommits.length){
+          parentCommitHashes = parentCommitHashes.concat(
+            parentCommit.parentCommits,
+          );
+          currentCommitHash = parentCommit.hash;
+        }
+          
+      }
+    }
+    const nextCommits = [baseCommit];
     while (nextCommits.length) {
       // Push commit onto stack
+      console.log("NEXT COMMIT:", nextCommits);
       const nextCommit = nextCommits.pop()!;
       stack.push(nextCommit);
 
@@ -160,8 +194,8 @@ export class ConcreteStacker implements Stacker {
       );
       nextCommits.push(...childCommits);
     }
+    console.log("Stack: ", stack);
 
-    //TODO: Implement a complete version of the stack that start from the merge-base commit and also takes into consideration landed PRs
     const commitNullablePrInfoPairs = await Promise.all(
       stack.map(async (commit) => {
         const branchName = nullthrows(

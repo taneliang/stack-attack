@@ -40,6 +40,11 @@ export interface SourceControl {
   getCommitByHash(hash: CommitHash): Promise<Commit | null>;
 
   /**
+   * Get all the merge-base commit hashes on the long lived branches for a given commit 
+   */
+  getMergeCommitByCommitHash(commit: Commit) : Promise<CommitHash[]>;
+
+  /**
    * Uproot a commit tree and rebase it onto `targetCommit`.
    *
    * Calls `repositoryUpdateListener` on success.

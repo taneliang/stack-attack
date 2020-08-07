@@ -198,6 +198,33 @@ export class GitSourceControl implements SourceControl {
     this.repo = ourRepository;
   }
 
+  private getLLBFromConfig(): BranchName[] {
+    const configFileContents = fs
+      .readFileSync(`${this.repoPath}/sttack.config.json`)
+      .toString();
+    const { longLivedBranches } = JSON.parse(configFileContents);
+    return longLivedBranches;
+  }
+
+  async getMergeCommitByCommitHash(commit: Commit): Promise<CommitHash[]> {
+    const repo = await nodegit.Repository.open(this.repoPath);
+    const longlivedbranches: BranchName[] = this.getLLBFromConfig(); //TODO: Get long lived branches from sttack.config.json
+    const commitOid = nodegit.Oid.fromString(commit.hash);
+    return await Promise.all(
+      longlivedbranches.map(async (branchName) => {
+        const branchTipCommitOid = await nodegit.Reference.nameToId(
+          repo,
+          branchName,
+        );
+        const mergeBaseOid = await nodegit.Merge.base(
+          repo,
+          commitOid,
+          branchTipCommitOid,
+        );
+        return mergeBaseOid.tostrS();
+      }),
+    );
+  }
   async getCommitByHash(hash: CommitHash): Promise<Commit | null> {
     try {
       const repo = await nodegit.Repository.open(this.repoPath);
