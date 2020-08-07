@@ -146,9 +146,9 @@ export class ConcreteStacker implements Stacker {
     const mergeBaseCommitHashes = await this.sourceControl.getMergeCommitByCommitHash(
       commit,
     ); //Question: what if the commit is on the same branch as the mergeBaseCommit?
-    //Should one not be looking for a merge base commit then? Description update stopped working, reason? Did I fuck up something? 
+    //Should one not be looking for a merge base commit then? Description update stopped working, reason? Did I fuck up something?
     let parentCommitHashes = commit.parentCommits;
-    let currentCommitHash = commit.hash; 
+    let currentCommitHash = commit.hash;
     let baseCommit;
     while (parentCommitHashes.length) {
       const parentCommitHash = parentCommitHashes.pop();
@@ -156,7 +156,9 @@ export class ConcreteStacker implements Stacker {
         (commitHash) => commitHash === parentCommitHash,
       );
       if (baseCommitHash) {
-        baseCommit = await this.sourceControl.getCommitByHash(currentCommitHash);
+        baseCommit = await this.sourceControl.getCommitByHash(
+          currentCommitHash,
+        );
         console.log("CURRENT COMMIT:", baseCommit);
         break;
       }
@@ -164,13 +166,12 @@ export class ConcreteStacker implements Stacker {
         const parentCommit = await this.sourceControl.getCommitByHash(
           parentCommitHash,
         );
-        if (parentCommit && parentCommit.parentCommits.length){
+        if (parentCommit && parentCommit.parentCommits.length) {
           parentCommitHashes = parentCommitHashes.concat(
             parentCommit.parentCommits,
           );
           currentCommitHash = parentCommit.hash;
         }
-          
       }
     }
     const nextCommits = [baseCommit];
@@ -200,7 +201,7 @@ export class ConcreteStacker implements Stacker {
       stack.map(async (commit) => {
         const branchName = nullthrows(
           this.sourceControl.getSttackBranchForCommit(commit),
-          "Violation of prerequisite: updatePRDescriptionsForCompleteTreeContainingCommit requires commits to have its Stack Attack branch already pushed to the remote.",
+          "Violation of prerequisite: all commits in `stack` must have their Stack Attack branch already pushed to the remote.",
         );
         const prInfo = await this.collaborationPlatform.getPRForCommitByBranchName(
           commit.hash,
