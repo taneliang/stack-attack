@@ -78,9 +78,6 @@ export class GitSourceControl implements SourceControl {
     const branchCommits = await Promise.all(
       refs.map(async (ref: nodegit.Reference) => repo.getBranchCommit(ref)),
     );
-    const branchNames: string[] = refs.map((ref: nodegit.Reference) =>
-      ref.name(),
-    );
 
     // Compute the most recent common ancestor of all branches.
     const commonAncestorCommitOid = await branchCommits.reduce(
@@ -111,18 +108,12 @@ export class GitSourceControl implements SourceControl {
       refs.map((ref) => {
         return new Promise(async (resolve, _) => {
           const history = (await repo.getBranchCommit(ref)).history();
-          let stopped = false;
-
           history.on("commit", (nodegitCommit: nodegit.Commit) => {
-            if (stopped) {
-              return;
-            }
             const sha = nodegitCommit.sha();
 
             // If the commit is already in `commitHashMap`, stop because we
             // have already processed it.
             if (commitHashMap.has(sha)) {
-              stopped = true;
               return;
             }
 
@@ -142,7 +133,6 @@ export class GitSourceControl implements SourceControl {
               parentCommits: [],
               childCommits: [],
             };
-            // Use Immer?
             commitHashMap.set(sha, newCommit);
 
             // Update the commit's children.
@@ -155,11 +145,6 @@ export class GitSourceControl implements SourceControl {
               }
               commitChildrenMap.get(parentHash)!.add(sha);
             });
-
-            // Stop if this is the common ancestor commit
-            if (nodegitCommit.id().equal(commonAncestorCommitOid)) {
-              stopped = true;
-            }
           });
 
           history.on("end", () => resolve());
@@ -210,24 +195,18 @@ export class GitSourceControl implements SourceControl {
       earliestInterestingCommit,
       commits: commitHashMap,
     };
-
     this.repo = ourRepository;
   }
 
   async getCommitByHash(hash: CommitHash): Promise<Commit | null> {
-    // TODO: Implement for partial match
-    const relatedCommits: Commit[] = [];
-    const keys = Array.from(this.repo.commits.keys());
-    keys.forEach((key) => {
-      if (key.indexOf(hash) !== -1) {
-        // If hash in key, as the key was from the commits' key, it should be present
-        relatedCommits.push(this.repo.commits.get(key)!);
-      }
-    });
-    if (relatedCommits.length !== 1) {
+    try {
+      const repo = await nodegit.Repository.open(this.repoPath);
+      const commit = await nodegit.AnnotatedCommit.fromRevspec(repo, hash);
+      const completeCommitHash = commit.id().tostrS();
+      return this.repo.commits.get(completeCommitHash) ?? null;
+    } catch (err) {
+      console.log(err.message);
       return null;
-    } else {
-      return relatedCommits[0];
     }
   }
 
