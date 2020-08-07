@@ -147,7 +147,7 @@ export class ConcreteStacker implements Stacker {
       commit,
     ); //Question: what if the commit is on the same branch as the mergeBaseCommit?
     //Should one not be looking for a merge base commit then? Description update stopped working, reason? Did I fuck up something?
-    let parentCommitHashes = commit.parentCommits;
+    let parentCommitHashes = [...commit.parentCommits];
     let currentCommitHash = commit.hash;
     let baseCommit;
     while (parentCommitHashes.length) {
@@ -167,9 +167,10 @@ export class ConcreteStacker implements Stacker {
           parentCommitHash,
         );
         if (parentCommit && parentCommit.parentCommits.length) {
-          parentCommitHashes = parentCommitHashes.concat(
-            parentCommit.parentCommits,
-          );
+          parentCommitHashes = [
+            ...parentCommitHashes,
+            ...parentCommit.parentCommits,
+          ];
           currentCommitHash = parentCommit.hash;
         }
       }
@@ -199,15 +200,16 @@ export class ConcreteStacker implements Stacker {
 
     const commitNullablePrInfoPairs = await Promise.all(
       stack.map(async (commit) => {
-        const branchName = nullthrows(
-          this.sourceControl.getSttackBranchForCommit(commit),
-          "Violation of prerequisite: all commits in `stack` must have their Stack Attack branch already pushed to the remote.",
-        );
-        const prInfo = await this.collaborationPlatform.getPRForCommitByBranchName(
-          commit.hash,
-          branchName,
-        );
-        return { commit, prInfo };
+        const branchName = this.sourceControl.getSttackBranchForCommit(commit);
+        return {
+          commit,
+          prInfo: branchName
+            ? await this.collaborationPlatform.getPRForCommitByBranchName(
+                commit.hash,
+                branchName,
+              )
+            : null,
+        };
       }),
     );
     const commitPrInfoPairs = commitNullablePrInfoPairs
