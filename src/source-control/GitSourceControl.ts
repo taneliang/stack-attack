@@ -245,7 +245,6 @@ export class GitSourceControl implements SourceControl {
       // Assumption : This commit has to exist in our repo else this function should crash?
       const baseCommitSttack = this.repo.commits.get(hashToBeRebased!)!;
       const targetCommitSttack = this.repo.commits.get(targetCommit!)!;
-
       if (!baseCommitSttack || !targetCommitSttack) {
         throw new Error("One of the commits selected does not exist");
       }
@@ -273,7 +272,6 @@ export class GitSourceControl implements SourceControl {
         targetCommitOid,
         true,
       );
-
       const newCommitOid = await repo.createCommit(
         cherryPickTargetRef.toString(),
         originalNodegitCommit.author(),
@@ -282,9 +280,6 @@ export class GitSourceControl implements SourceControl {
         tree,
         [targetNodegitCommit],
       );
-      // We now would want to use this new commit hash as the target
-      targetCommit = newCommitOid.tostrS();
-
       // Use `git branch -f` to change all the original commit's local branches
       // to point to the new one.
       baseCommitSttack.refNames.map(async (branchName: string) => {
@@ -307,9 +302,10 @@ export class GitSourceControl implements SourceControl {
       });
       queue.push(...baseCommitSttack.childCommits);
 
-      // Update refs in our hashMap
-      this.repo.commits = produce(this.repo.commits, (draftCommitHashMap) => {
-        const childrenOfTargetCommit = targetCommitSttack.childCommits;
+      // // Update refs in our hashMap
+      this.repo = produce(this.repo, (draftRepo) => {
+        const draftTargetCommitSttack = draftRepo.commits.get(targetCommit!)!;
+        const childrenOfTargetCommit = draftTargetCommitSttack.childCommits;
         const newCommitToInsert: Commit = {
           hash: newCommitOid.tostrS(),
           title: "Sttack Commit",
@@ -317,29 +313,32 @@ export class GitSourceControl implements SourceControl {
           author: baseCommitSttack.author,
           committer: baseCommitSttack.committer,
           refNames: baseCommitSttack.refNames.filter(refIsLocal),
-          parentCommits: [targetCommitSttack.hash],
+          parentCommits: [draftTargetCommitSttack.hash],
           childCommits: [...childrenOfTargetCommit],
         };
-        draftCommitHashMap.set(newCommitOid.tostrS(), newCommitToInsert);
+        draftRepo.commits.set(newCommitOid.tostrS(), newCommitToInsert);
+
         // Update ChildCommitHash for targetCommitSttack to newCommit
-        targetCommitSttack.childCommits = [newCommitOid.tostrS()];
+        draftTargetCommitSttack.childCommits = [newCommitOid.tostrS()];
         // Update ParentCommitHash for all of the children and replace targetCommitSttack's hash with newCommit's hash
         childrenOfTargetCommit.forEach((child) => {
-          const childCommit = draftCommitHashMap.get(child)!;
+          const childCommit = draftRepo.commits.get(child)!;
           const parentsOfChild = childCommit.parentCommits.map((parent) => {
-            if (parent === targetCommitSttack.hash) {
+            if (parent === draftTargetCommitSttack.hash) {
               return newCommitOid.tostrS();
             }
             return parent;
           });
           childCommit.parentCommits = parentsOfChild;
-          draftCommitHashMap.set(child, childCommit);
+          draftRepo.commits.set(child, childCommit);
         });
       });
+      // We now would want to use this new commit hash as the target
+      targetCommit = newCommitOid.tostrS();
     }
     // Remove temp branch
     nodegit.Branch.delete(await repo.getBranch(tempBranchName));
-    await this.loadIfChangesPresent();
+    await this.populateGitSourceControl();
   }
 
   async pushCommit(commit: Commit): Promise<void> {
@@ -416,16 +415,13 @@ export class GitSourceControl implements SourceControl {
         if (branch.length == 0) {
           branch = createSttackBranch();
           await repo.createBranch(branch, commit.hash, true);
-          this.repo.commits = produce(
-            this.repo.commits,
-            (draftCommitHashMap) => {
-              const commitToUpdate = draftCommitHashMap.get(commit.hash)!;
-              commitToUpdate.refNames = Array.from(
-                new Set([...commitToUpdate.refNames, branch]),
-              );
-              draftCommitHashMap.set(commit.hash, commitToUpdate);
-            },
-          );
+          this.repo = produce(this.repo, (draftRepo) => {
+            const commitToUpdate = draftRepo.commits.get(commit.hash)!;
+            commitToUpdate.refNames = Array.from(
+              new Set([...commitToUpdate.refNames, branch]),
+            );
+            draftRepo.commits.set(commit.hash, commitToUpdate);
+          });
         }
         commitBranchPairs.push({ commit: commit, sttackBranch: branch });
       }),
