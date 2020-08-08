@@ -142,11 +142,10 @@ export class ConcreteStacker implements Stacker {
     commit: Commit,
   ): Promise<void> {
     const stack = [];
-    //TODO: Implement a complete version of the stack that start from the merge-base commit and also takes into consideration landed PRs
+    //Implement a complete version of the stack that start from the merge-base commit and also takes into consideration landed PRs
     const mergeBaseCommitHashes = await this.sourceControl.getMergeCommitByCommitHash(
       commit,
-    ); //Question: what if the commit is on the same branch as the mergeBaseCommit?
-    //Should one not be looking for a merge base commit then? Description update stopped working, reason? Did I fuck up something?
+    ); 
     let parentCommitHashes = [...commit.parentCommits];
     let currentCommitHash = commit.hash;
     let baseCommit;
@@ -159,7 +158,6 @@ export class ConcreteStacker implements Stacker {
         baseCommit = await this.sourceControl.getCommitByHash(
           currentCommitHash,
         );
-        console.log("CURRENT COMMIT:", baseCommit);
         break;
       }
       if (parentCommitHash) {
@@ -178,7 +176,6 @@ export class ConcreteStacker implements Stacker {
     const nextCommits = [baseCommit];
     while (nextCommits.length) {
       // Push commit onto stack
-      console.log("NEXT COMMIT:", nextCommits);
       const nextCommit = nextCommits.pop()!;
       stack.push(nextCommit);
 
@@ -196,7 +193,6 @@ export class ConcreteStacker implements Stacker {
       );
       nextCommits.push(...childCommits);
     }
-    console.log("Stack: ", stack);
 
     const commitNullablePrInfoPairs = await Promise.all(
       stack.map(async (commit) => {
