@@ -308,7 +308,7 @@ export class GitSourceControl implements SourceControl {
         const childrenOfTargetCommit = draftTargetCommitSttack.childCommits;
         const newCommitToInsert: Commit = {
           hash: newCommitOid.tostrS(),
-          title: "Sttack Commit",
+          title: baseCommitSttack.title,
           timestamp: new Date(),
           author: baseCommitSttack.author,
           committer: baseCommitSttack.committer,
