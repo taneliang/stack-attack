@@ -10,6 +10,7 @@ import type {
   CommitHash,
   CommitSignature,
   Repository,
+  RefName,
 } from "../shared/types";
 import type {
   SourceControl,
@@ -18,13 +19,17 @@ import type {
 
 const localRefPrefix: string = "refs/heads/";
 
-function refIsLocal(refString: string): boolean {
+function refIsLocal(refString: RefName): boolean {
   return refString.startsWith(localRefPrefix);
 }
 
-function localRefToBranchName(refString: string): string {
+function localRefToBranchName(refString: RefName): BranchName {
   if (!refIsLocal(refString)) return refString;
   return refString.substr(localRefPrefix.length);
+}
+
+function branchNameToLocalRef(branchName: BranchName): RefName {
+  return `${localRefPrefix}${branchName}`;
 }
 
 function isSttackBranch(branch: BranchName): boolean {
@@ -32,8 +37,7 @@ function isSttackBranch(branch: BranchName): boolean {
 }
 
 function createSttackBranch(): BranchName {
-  const branchName: BranchName = `sttack-${lorem.slug(3)}`;
-  return branchName;
+  return `sttack-${lorem.slug(3)}`;
 }
 
 export class GitSourceControl implements SourceControl {
@@ -74,9 +78,6 @@ export class GitSourceControl implements SourceControl {
     const branchCommits = await Promise.all(
       refs.map(async (ref: nodegit.Reference) => repo.getBranchCommit(ref)),
     );
-    const branchNames: string[] = refs.map((ref: nodegit.Reference) =>
-      ref.name(),
-    );
 
     // Compute the most recent common ancestor of all branches.
     const commonAncestorCommitOid = await branchCommits.reduce(
@@ -107,18 +108,12 @@ export class GitSourceControl implements SourceControl {
       refs.map((ref) => {
         return new Promise(async (resolve, _) => {
           const history = (await repo.getBranchCommit(ref)).history();
-          let stopped = false;
-
           history.on("commit", (nodegitCommit: nodegit.Commit) => {
-            if (stopped) {
-              return;
-            }
             const sha = nodegitCommit.sha();
 
             // If the commit is already in `commitHashMap`, stop because we
             // have already processed it.
             if (commitHashMap.has(sha)) {
-              stopped = true;
               return;
             }
 
@@ -138,7 +133,6 @@ export class GitSourceControl implements SourceControl {
               parentCommits: [],
               childCommits: [],
             };
-            // Use Immer?
             commitHashMap.set(sha, newCommit);
 
             // Update the commit's children.
@@ -151,11 +145,6 @@ export class GitSourceControl implements SourceControl {
               }
               commitChildrenMap.get(parentHash)!.add(sha);
             });
-
-            // Stop if this is the common ancestor commit
-            if (nodegitCommit.id().equal(commonAncestorCommitOid)) {
-              stopped = true;
-            }
           });
 
           history.on("end", () => resolve());
@@ -206,24 +195,18 @@ export class GitSourceControl implements SourceControl {
       earliestInterestingCommit,
       commits: commitHashMap,
     };
-
     this.repo = ourRepository;
   }
 
   async getCommitByHash(hash: CommitHash): Promise<Commit | null> {
-    // TODO: Implement for partial match
-    const relatedCommits: Commit[] = [];
-    const keys = Array.from(this.repo.commits.keys());
-    keys.forEach((key) => {
-      if (key.indexOf(hash) !== -1) {
-        // If hash in key, as the key was from the commits' key, it should be present
-        relatedCommits.push(this.repo.commits.get(key)!);
-      }
-    });
-    if (relatedCommits.length !== 1) {
+    try {
+      const repo = await nodegit.Repository.open(this.repoPath);
+      const commit = await nodegit.AnnotatedCommit.fromRevspec(repo, hash);
+      const completeCommitHash = commit.id().tostrS();
+      return this.repo.commits.get(completeCommitHash) ?? null;
+    } catch (err) {
+      console.log(err.message);
       return null;
-    } else {
-      return relatedCommits[0];
     }
   }
 
@@ -341,7 +324,7 @@ export class GitSourceControl implements SourceControl {
     await this.populateGitSourceControl();
   }
 
-  async pushCommit(commit: Commit): Promise<void> {
+  async pushBranch(branchName: BranchName): Promise<void> {
     try {
       const {
         userPublicKeyPath,
@@ -367,32 +350,20 @@ export class GitSourceControl implements SourceControl {
           );
         },
       };
-      const connection = remote.connect(nodegit.Enums.DIRECTION.PUSH, callback);
-      // SEE: Can only push if branch exists on remote? How to find branch name here?
-      await Promise.all(
-        commit.refNames.map(
-          async (ref: string): Promise<number> => {
-            return await remote.push([`${ref}:${ref}`], {
-              callbacks: callback,
-            });
-          },
-        ),
-      );
+      const refName = branchNameToLocalRef(branchName);
+      await remote.push([`+${refName}:${refName}`], { callbacks: callback });
     } catch (err) {
       console.log(err);
     }
   }
 
-  async pushCommitsForCommitTreeRootedAtCommit(commit: Commit): Promise<void> {
-    const queue: Commit[] = [commit];
-    while (queue.length) {
-      const commit = queue.pop()!;
-      await this.pushCommit(commit);
-      queue.push(
-        ...commit.childCommits.map((hash) => this.repo.commits.get(hash)!),
-      );
+  getSttackBranchForCommit(commit: Commit): BranchName | null {
+    for (const refName of commit.refNames) {
+      if (isSttackBranch(localRefToBranchName(refName))) {
+        return localRefToBranchName(refName);
+      }
     }
-    await this.loadIfChangesPresent();
+    return null;
   }
 
   async attachSttackBranchesToCommits(
@@ -406,13 +377,13 @@ export class GitSourceControl implements SourceControl {
     const repo = await nodegit.Repository.open(this.repoPath);
     await Promise.all(
       commits.map(async (commit) => {
-        let branch: BranchName = "";
-        commit.refNames.forEach((refName) => {
-          if (isSttackBranch(localRefToBranchName(refName))) {
-            branch = localRefToBranchName(refName);
-          }
-        });
-        if (branch.length == 0) {
+        let branch: BranchName | null = null;
+
+        // Use the existing sttack branch if it exists
+        branch = this.getSttackBranchForCommit(commit);
+
+        // Attach sttack branch otherwise
+        if (!branch) {
           branch = createSttackBranch();
           await repo.createBranch(branch, commit.hash, true);
           this.repo = produce(this.repo, (draftRepo) => {

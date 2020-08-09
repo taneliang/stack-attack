@@ -3,6 +3,7 @@ import type {
   Commit,
   PullRequestID,
   PullRequestInfo,
+  CommitHash,
 } from "../shared/types";
 
 export interface CollaborationPlatform {
@@ -10,6 +11,14 @@ export interface CollaborationPlatform {
    * Get PR info for a particular commit.
    */
   getPRForCommit(commit: Commit): Promise<PullRequestInfo | null>;
+
+  /**
+   * Get PR info given a commit's hash and branch name.
+   */
+  getPRForCommitByBranchName(
+    commitHash: CommitHash,
+    branchName: BranchName,
+  ): Promise<PullRequestInfo | null>;
 
   /**
    * Get PR info given a PR number.
