@@ -198,7 +198,7 @@ export class GitSourceControl implements SourceControl {
     this.repo = ourRepository;
   }
 
-  private getLLBFromConfig(): BranchName[] {
+  private getLongLivedBranchesFromConfig(): BranchName[] {
     const configFileContents = fs
       .readFileSync(`${this.repoPath}/sttack.config.json`)
       .toString();
