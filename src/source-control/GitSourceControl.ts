@@ -2,6 +2,7 @@ import nodegit from "nodegit";
 import produce, { enableMapSet } from "immer";
 import fs from "fs";
 import { lorem } from "faker";
+import nullthrows from "nullthrows";
 enableMapSet();
 
 import type {
@@ -211,31 +212,34 @@ export class GitSourceControl implements SourceControl {
   }
 
   async rebaseCommits(
-    rebaseRootCommit: CommitHash,
-    targetCommit: CommitHash,
+    rebaseRootCommitHash: CommitHash,
+    targetCommitHash: CommitHash,
   ): Promise<void> {
     const repo = await nodegit.Repository.open(this.repoPath);
     await this.loadIfChangesPresent();
-    const tempBranchName = `sttack-${lorem.slug(3)}`;
-    const queue: string[] = [rebaseRootCommit];
-    // 1. Rebase root commit on target commit
-    // 2. Update Target Commit to point to the cherry picked commit
-    // 3. Update rebaseRootCommit to point to child of itself
-    // Call LoadRepositoryInformation
 
+    const tempBranchName = "stack-attack-temporary-cherry-pick-target-branch";
+    const queue: string[] = [rebaseRootCommitHash];
     while (queue.length) {
-      const hashToBeRebased = queue.pop();
-      // Assumption : This commit has to exist in our repo else this function should crash?
-      const baseCommitSttack = this.repo.commits.get(hashToBeRebased!)!;
-      const targetCommitSttack = this.repo.commits.get(targetCommit!)!;
-      if (!baseCommitSttack || !targetCommitSttack) {
-        throw new Error("One of the commits selected does not exist");
+      // Loop overview:
+      // 1. Rebase root commit on target commit
+      // 2. Update Target Commit to point to the cherry picked commit
+      // 3. Update rebaseRootCommit to point to child of itself
+
+      const hashToBeRebased = queue.pop()!;
+      const commitToBeRebased = nullthrows(
+        this.repo.commits.get(hashToBeRebased),
+        `Commit to be rebased ${hashToBeRebased} does not exist`,
+      );
+      if (!this.repo.commits.has(targetCommitHash)) {
+        throw new Error(`Target commit ${targetCommitHash} does not exist`);
       }
 
-      const targetCommitOid = nodegit.Oid.fromString(targetCommit);
+      // Cherry pick commit to be rebased onto target
+      const targetCommitOid = nodegit.Oid.fromString(targetCommitHash);
       const originalNodegitCommit = await nodegit.Commit.lookup(
         repo,
-        nodegit.Oid.fromString(baseCommitSttack.hash),
+        nodegit.Oid.fromString(commitToBeRebased.hash),
       );
       const targetNodegitCommit = await repo.getCommit(targetCommitOid);
       const index = ((await nodegit.Cherrypick.commit(
@@ -247,9 +251,7 @@ export class GitSourceControl implements SourceControl {
         // Bug in type defs: `commit` returns an Index, not a number.
         // See: https://www.nodegit.org/api/cherrypick/#cherrypick
       )) as unknown) as nodegit.Index;
-
       const tree = await index.writeTreeTo(repo);
-
       const cherryPickTargetRef = await repo.createBranch(
         tempBranchName,
         targetCommitOid,
@@ -263,64 +265,82 @@ export class GitSourceControl implements SourceControl {
         tree,
         [targetNodegitCommit],
       );
+
       // Use `git branch -f` to change all the original commit's local branches
       // to point to the new one.
-      baseCommitSttack.refNames.map(async (branchName: string) => {
-        // Target Commit Lookup will change if we use CherryPick
-        if (refIsLocal(branchName)) {
-          const branchRef = await repo.getReference(branchName);
-          const isBranchHead = nodegit.Branch.isHead(branchRef);
-          if (isBranchHead) {
-            repo.detachHead();
-          }
-          const newBranchRef = await repo.createBranch(
-            localRefToBranchName(branchName),
-            newCommitOid,
-            true,
-          );
-          if (isBranchHead) {
-            repo.setHead(newBranchRef.toString());
-          }
+      commitToBeRebased.refNames.map(async (refName: RefName) => {
+        if (!refIsLocal(refName)) {
+          return; // We only want to move local refs
+        }
+
+        const branchRef = await repo.getReference(refName);
+        const isBranchHead = nodegit.Branch.isHead(branchRef);
+        if (isBranchHead) {
+          // We cannot move a branch if we're checked out to it, so we need to detach.
+          repo.detachHead(); // Be sure to set the head after detaching!
+        }
+
+        const newBranchRef = await repo.createBranch(
+          localRefToBranchName(refName),
+          newCommitOid,
+          true,
+        );
+
+        if (isBranchHead) {
+          // If we were checked out to the pre-cherry-pick branch, check out the
+          // new post-cherry-pick branch.
+          repo.setHead(newBranchRef.toString());
         }
       });
-      queue.push(...baseCommitSttack.childCommits);
 
-      // // Update refs in our hashMap
+      // Update refs in our hashMap
       this.repo = produce(this.repo, (draftRepo) => {
-        const draftTargetCommitSttack = draftRepo.commits.get(targetCommit!)!;
-        const childrenOfTargetCommit = draftTargetCommitSttack.childCommits;
+        const draftTargetCommit = draftRepo.commits.get(targetCommitHash)!;
+        const childrenOfTargetCommit = draftTargetCommit.childCommits;
+
+        // Add the newly-created commit to our repo
         const newCommitToInsert: Commit = {
           hash: newCommitOid.tostrS(),
-          title: baseCommitSttack.title,
+          title: commitToBeRebased.title,
           timestamp: new Date(),
-          author: baseCommitSttack.author,
-          committer: baseCommitSttack.committer,
-          refNames: baseCommitSttack.refNames.filter(refIsLocal),
-          parentCommits: [draftTargetCommitSttack.hash],
+          author: commitToBeRebased.author,
+          committer: commitToBeRebased.committer,
+          refNames: commitToBeRebased.refNames.filter(refIsLocal),
+          parentCommits: [draftTargetCommit.hash],
           childCommits: [...childrenOfTargetCommit],
         };
         draftRepo.commits.set(newCommitOid.tostrS(), newCommitToInsert);
 
-        // Update ChildCommitHash for targetCommitSttack to newCommit
-        draftTargetCommitSttack.childCommits = [newCommitOid.tostrS()];
-        // Update ParentCommitHash for all of the children and replace targetCommitSttack's hash with newCommit's hash
-        childrenOfTargetCommit.forEach((child) => {
-          const childCommit = draftRepo.commits.get(child)!;
-          const parentsOfChild = childCommit.parentCommits.map((parent) => {
-            if (parent === draftTargetCommitSttack.hash) {
-              return newCommitOid.tostrS();
-            }
-            return parent;
-          });
-          childCommit.parentCommits = parentsOfChild;
-          draftRepo.commits.set(child, childCommit);
+        // Update target's children
+        draftTargetCommit.childCommits = [newCommitOid.tostrS()];
+
+        // Update ParentCommitHash for all of the children and replace targetCommit's hash with newCommit's hash
+        childrenOfTargetCommit.forEach((childHash) => {
+          const childCommit = draftRepo.commits.get(childHash)!;
+          const newParentCommitHashes = childCommit.parentCommits.map(
+            (parent) => {
+              // Replace pre-cherry-pick parent with the post-cherry-pick one
+              if (parent === draftTargetCommit.hash) {
+                return newCommitOid.tostrS();
+              }
+              return parent;
+            },
+          );
+          childCommit.parentCommits = newParentCommitHashes;
+          draftRepo.commits.set(childHash, childCommit);
         });
       });
+
+      queue.push(...commitToBeRebased.childCommits);
+
       // We now would want to use this new commit hash as the target
-      targetCommit = newCommitOid.tostrS();
+      // FIXME: This will turn a commit tree into a linear stack!
+      targetCommitHash = newCommitOid.tostrS();
     }
+
     // Remove temp branch
     nodegit.Branch.delete(await repo.getBranch(tempBranchName));
+
     await this.populateGitSourceControl();
   }
 
