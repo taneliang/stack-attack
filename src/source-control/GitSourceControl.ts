@@ -307,28 +307,15 @@ export class GitSourceControl implements SourceControl {
           committer: commitToBeRebased.committer,
           refNames: commitToBeRebased.refNames.filter(refIsLocal),
           parentCommits: [draftTargetCommit.hash],
-          childCommits: [...childrenOfTargetCommit],
+          childCommits: [],
         };
         draftRepo.commits.set(newCommitOid.tostrS(), newCommitToInsert);
 
         // Update target's children
-        draftTargetCommit.childCommits = [newCommitOid.tostrS()];
-
-        // Update ParentCommitHash for all of the children and replace targetCommit's hash with newCommit's hash
-        childrenOfTargetCommit.forEach((childHash) => {
-          const childCommit = draftRepo.commits.get(childHash)!;
-          const newParentCommitHashes = childCommit.parentCommits.map(
-            (parent) => {
-              // Replace pre-cherry-pick parent with the post-cherry-pick one
-              if (parent === draftTargetCommit.hash) {
-                return newCommitOid.tostrS();
-              }
-              return parent;
-            },
-          );
-          childCommit.parentCommits = newParentCommitHashes;
-          draftRepo.commits.set(childHash, childCommit);
-        });
+        draftTargetCommit.childCommits = [
+          ...draftTargetCommit.childCommits,
+          newCommitOid.tostrS(),
+        ];
       });
 
       queue.push(...commitToBeRebased.childCommits);
