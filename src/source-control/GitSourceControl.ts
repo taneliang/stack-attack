@@ -409,7 +409,7 @@ export class GitSourceControl implements SourceControl {
           this.repo = produce(this.repo, (draftRepo) => {
             const commitToUpdate = draftRepo.commits.get(commit.hash)!;
             commitToUpdate.refNames = Array.from(
-              new Set([...commitToUpdate.refNames, branch]),
+              new Set([...commitToUpdate.refNames, branch!]),
             );
             draftRepo.commits.set(commit.hash, commitToUpdate);
           });
