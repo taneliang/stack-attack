@@ -1,7 +1,7 @@
 import nodegit from "nodegit";
 import produce, { enableMapSet } from "immer";
 import fs from "fs";
-import { lorem } from "faker";
+import randomWords from "random-words";
 import nullthrows from "nullthrows";
 enableMapSet();
 
@@ -19,6 +19,7 @@ import type {
 } from "./SourceControl";
 
 const localRefPrefix: string = "refs/heads/";
+const stackAttackBranchNamePrefix = "stack-attack/";
 
 function refIsLocal(refString: RefName): boolean {
   return refString.startsWith(localRefPrefix);
@@ -34,11 +35,14 @@ function branchNameToLocalRef(branchName: BranchName): RefName {
 }
 
 function isSttackBranch(branch: BranchName): boolean {
-  return branch.startsWith("sttack-");
+  return branch.startsWith(stackAttackBranchNamePrefix);
 }
 
 function createSttackBranch(): BranchName {
-  return `sttack-${lorem.slug(3)}`;
+  return `${stackAttackBranchNamePrefix}${randomWords({
+    exactly: 3,
+    join: "-",
+  })}`;
 }
 
 export class GitSourceControl implements SourceControl {
