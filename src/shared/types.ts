@@ -16,6 +16,7 @@ export interface PullRequestInfo {
 export type CommitHash = string;
 export type RefName = string;
 export type BranchName = string;
+export type RemoteName = string;
 
 export interface CommitSignature {
   name: string;
