@@ -295,7 +295,10 @@ export class GitSourceControl implements SourceControl {
 
       // Update refs in our hashMap
       this.repo = produce(this.repo, (draftRepo) => {
-        const draftTargetCommit = draftRepo.commits.get(targetCommitHash)!;
+        const draftTargetCommit = nullthrows(
+          draftRepo.commits.get(targetCommitHash)!,
+          `Could not find commit with hash ${targetCommitHash}`,
+        );
 
         // Add the newly-created commit to our repo
         const newCommitToInsert: Commit = {
