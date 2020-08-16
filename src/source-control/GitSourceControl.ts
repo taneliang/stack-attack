@@ -239,10 +239,7 @@ export class GitSourceControl implements SourceControl {
       // rebase cannot happen
       targetCommitHash = nullthrows(
         rebaseTargetHashMap.get(hashOfCommitToBeRebased),
-        `Target commit for ${hashOfCommitToBeRebased.slice(
-          0,
-          6,
-        )} could not be found `,
+        `Target commit for ${hashOfCommitToBeRebased} could not be found`,
       );
       const commitToBeRebased = nullthrows(
         this.repo.commits.get(hashOfCommitToBeRebased),
@@ -339,8 +336,8 @@ export class GitSourceControl implements SourceControl {
 
       queue.push(...commitToBeRebased.childCommits);
 
-      // We now would want to use this new commit hash as the target for all of it's children
-      commitToBeRebased.childCommits.map((childCommitHash: CommitHash) => {
+      // Register new commit as the rebase target for all children
+      commitToBeRebased.childCommits.forEach((childCommitHash) => {
         rebaseTargetHashMap.set(childCommitHash, newCommitOid.tostrS());
       });
     }
