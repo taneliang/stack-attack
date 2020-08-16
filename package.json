@@ -8,8 +8,8 @@
     "node": ">=12.4.0"
   },
   "scripts": {
-    "cli": "ts-node ./src/cli/index.ts",
-    "cli:watch": "nodemon -I -x ts-node -e ts,tsx ./src/cli/index.ts",
+    "cli": "ts-node --files ./src/cli/index.ts",
+    "cli:watch": "nodemon -I -x 'ts-node --files' -e ts,tsx ./src/cli/index.ts",
     "clean": "rm -rf dist",
     "build": "tsc --project tsconfig.dist.json && chmod +x dist/cli/index.js",
     "typecheck": "tsc --noEmit",
@@ -20,12 +20,12 @@
     "@octokit/rest": "^18.0.0",
     "@types/faker": "^4.1.12",
     "commander": "^6.0.0",
-    "faker": "^4.1.0",
     "immer": "^7.0.5",
     "ink": "3.0.0-6",
     "nodegit": "^0.26.5",
     "nullthrows": "^1.1.1",
     "prop-types": "^15.7.2",
+    "random-words": "^1.1.1",
     "react": "^16.13.1"
   },
   "devDependencies": {
