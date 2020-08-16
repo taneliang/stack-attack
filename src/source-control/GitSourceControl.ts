@@ -221,7 +221,11 @@ export class GitSourceControl implements SourceControl {
   ): Promise<void> {
     const repo = await nodegit.Repository.open(this.repoPath);
     await this.loadIfChangesPresent();
-
+    const rebaseTargetHashMap = new Map<CommitHash, CommitHash>();
+    if (!this.repo.commits.has(targetCommitHash)) {
+      throw new Error(`Target commit ${targetCommitHash} does not exist`);
+    }
+    rebaseTargetHashMap.set(rebaseRootCommitHash, targetCommitHash);
     const tempBranchName = "stack-attack-temporary-cherry-pick-target-branch";
     const queue: string[] = [rebaseRootCommitHash];
     while (queue.length) {
@@ -230,10 +234,19 @@ export class GitSourceControl implements SourceControl {
       // 2. Update Target Commit to point to the cherry picked commit
       // 3. Update rebaseRootCommit to point to child of itself
 
-      const hashToBeRebased = queue.pop()!;
+      const hashOfCommitToBeRebased = queue.pop()!;
+      // `hashOfCommitToBeRebased` should always be present in the rebaseTargetHashMap, adding nullthrows here, so that if null,
+      // rebase cannot happen
+      targetCommitHash = nullthrows(
+        rebaseTargetHashMap.get(hashOfCommitToBeRebased),
+        `Target commit for ${hashOfCommitToBeRebased.slice(
+          0,
+          6,
+        )} could not be found `,
+      );
       const commitToBeRebased = nullthrows(
-        this.repo.commits.get(hashToBeRebased),
-        `Commit to be rebased ${hashToBeRebased} does not exist`,
+        this.repo.commits.get(hashOfCommitToBeRebased),
+        `Commit to be rebased ${hashOfCommitToBeRebased} does not exist`,
       );
       if (!this.repo.commits.has(targetCommitHash)) {
         throw new Error(`Target commit ${targetCommitHash} does not exist`);
@@ -326,9 +339,10 @@ export class GitSourceControl implements SourceControl {
 
       queue.push(...commitToBeRebased.childCommits);
 
-      // We now would want to use this new commit hash as the target
-      // FIXME: This will turn a commit tree into a linear stack!
-      targetCommitHash = newCommitOid.tostrS();
+      // We now would want to use this new commit hash as the target for all of it's children
+      commitToBeRebased.childCommits.map((childCommitHash: CommitHash) => {
+        rebaseTargetHashMap.set(childCommitHash, newCommitOid.tostrS());
+      });
     }
 
     // Remove temp branch
