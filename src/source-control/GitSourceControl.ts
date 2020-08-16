@@ -296,7 +296,6 @@ export class GitSourceControl implements SourceControl {
       // Update refs in our hashMap
       this.repo = produce(this.repo, (draftRepo) => {
         const draftTargetCommit = draftRepo.commits.get(targetCommitHash)!;
-        const childrenOfTargetCommit = draftTargetCommit.childCommits;
 
         // Add the newly-created commit to our repo
         const newCommitToInsert: Commit = {
