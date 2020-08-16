@@ -80,11 +80,19 @@ function backendCommitGraphToDisplayCommits(
       a.timestamp > b.timestamp ? 1 : -1,
     );
     const childDisplayCommits = sortedChildren.flatMap((child, index) => {
-      const forkIndex = sortedChildren.length - index - 1;
+      // Last child appears linearly with its parent; every other child forks
+      // from the main line. Example:
+      // * Child 2
+      // | * Child 1
+      // |/
+      // | * Child 0
+      // |/
+      // * Parent
+      const hasFork = index !== sortedChildren.length - 1;
       return displayCommitsForSubgraphRootedAtCommit(
         child,
-        depth + forkIndex,
-        forkIndex !== 0,
+        depth + (hasFork ? 1 : 0),
+        hasFork,
       );
     });
 
