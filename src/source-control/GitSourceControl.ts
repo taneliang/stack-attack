@@ -388,17 +388,20 @@ export class GitSourceControl implements SourceControl {
       commits.map(async (commit) => {
         let branch: BranchName | null = null;
 
-        // Use the existing sttack branch if it exists
+        // Use the existing stack-attack branch if it exists
         branch = this.getSttackBranchForCommit(commit);
 
-        // Attach sttack branch otherwise
+        // Attach stack-attack branch otherwise
         if (!branch) {
           branch = createSttackBranch();
           await repo.createBranch(branch, commit.hash, true);
           this.repo = produce(this.repo, (draftRepo) => {
             const commitToUpdate = draftRepo.commits.get(commit.hash)!;
             commitToUpdate.refNames = Array.from(
-              new Set([...commitToUpdate.refNames, branch!]),
+              new Set([
+                ...commitToUpdate.refNames,
+                branchNameToLocalRef(branch!),
+              ]),
             );
             draftRepo.commits.set(commit.hash, commitToUpdate);
           });
