@@ -59,7 +59,7 @@ export interface SourceControl {
    * @param branchName Name of the branch to be pushed
    * @param remoteName Name of the remote that the branch should be pushed on (defaults to 'origin')
    */
-  pushBranch(branchName: BranchName, remoteName: RemoteName): Promise<void>;
+  pushBranch(branchName: BranchName, remoteName?: RemoteName): Promise<void>;
 
   /**
    * Gets the Stack Attack branch for `commit` if the commit has one, otherwise

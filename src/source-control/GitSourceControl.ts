@@ -351,7 +351,7 @@ export class GitSourceControl implements SourceControl {
 
   async pushBranch(
     branchName: BranchName,
-    remoteName: RemoteName = "origin",
+    remoteName = "origin",
   ): Promise<void> {
     try {
       const {
@@ -366,7 +366,11 @@ export class GitSourceControl implements SourceControl {
       const remote = await repo.getRemote(remoteName);
       const refName = branchNameToLocalRef(branchName);
       const branchReference = nullthrows(
-        await nodegit.Branch.lookup(repo, refName, nodegit.Branch.BRANCH.LOCAL),
+        await nodegit.Branch.lookup(
+          repo,
+          branchName,
+          nodegit.Branch.BRANCH.LOCAL,
+        ),
         `Branch with name ${branchName} could not be found`,
       );
       const callback = {
