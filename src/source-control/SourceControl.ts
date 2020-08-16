@@ -3,6 +3,7 @@ import type {
   Commit,
   CommitHash,
   BranchName,
+  RemoteName,
 } from "../shared/types";
 
 export type SourceControlRepositoryUpdateListener = (repo: Repository) => void;
@@ -53,7 +54,12 @@ export interface SourceControl {
     targetCommit: CommitHash,
   ): Promise<void>;
 
-  pushBranch(branchName: BranchName): Promise<void>;
+  /**
+   * Push Branch pushes the provided branch Name on the provided remote, and sets up the pushed branch to track its remote counterpart
+   * @param branchName Name of the branch to be pushed
+   * @param remoteName Name of the remote that the branch should be pushed on (defaults to 'origin')
+   */
+  pushBranch(branchName: BranchName, remoteName?: RemoteName): Promise<void>;
 
   /**
    * Gets the Stack Attack branch for `commit` if the commit has one, otherwise

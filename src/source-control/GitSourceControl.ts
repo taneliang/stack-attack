@@ -12,6 +12,7 @@ import type {
   CommitSignature,
   Repository,
   RefName,
+  RemoteName,
 } from "../shared/types";
 import type {
   SourceControl,
@@ -348,7 +349,10 @@ export class GitSourceControl implements SourceControl {
     await this.populateGitSourceControl();
   }
 
-  async pushBranch(branchName: BranchName): Promise<void> {
+  async pushBranch(
+    branchName: BranchName,
+    remoteName = "origin",
+  ): Promise<void> {
     try {
       const {
         userPublicKeyPath,
@@ -358,8 +362,16 @@ export class GitSourceControl implements SourceControl {
         fs.readFileSync(`${this.repoPath}/sttack.config.json`, "utf-8"),
       );
       const repo = await nodegit.Repository.open(this.repoPath);
-      // SEE: Could be any of the long lived branches?
-      const remote = await repo.getRemote("origin");
+      const remote = await repo.getRemote(remoteName);
+      const refName = branchNameToLocalRef(branchName);
+      const branchReference = nullthrows(
+        await nodegit.Branch.lookup(
+          repo,
+          branchName,
+          nodegit.Branch.BRANCH.LOCAL,
+        ),
+        `Branch with name ${branchName} could not be found`,
+      );
       const callback = {
         credentials: function (_url: string, userName: string) {
           //console.log("Getting credentials");
@@ -374,8 +386,11 @@ export class GitSourceControl implements SourceControl {
           );
         },
       };
-      const refName = branchNameToLocalRef(branchName);
       await remote.push([`+${refName}:${refName}`], { callbacks: callback });
+      await nodegit.Branch.setUpstream(
+        branchReference,
+        `${remoteName}/${branchName}`,
+      );
     } catch (err) {
       console.log(err);
     }
