@@ -362,7 +362,6 @@ export class GitSourceControl implements SourceControl {
         fs.readFileSync(`${this.repoPath}/sttack.config.json`, "utf-8"),
       );
       const repo = await nodegit.Repository.open(this.repoPath);
-      // SEE: Could be any of the long lived branches?
       const remote = await repo.getRemote(remoteName);
       const refName = branchNameToLocalRef(branchName);
       const branchReference = nullthrows(
