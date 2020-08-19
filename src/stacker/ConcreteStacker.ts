@@ -43,8 +43,10 @@ export class ConcreteStacker implements Stacker {
     );
   }
 
-  loadRepositoryInformation(): void {
-    this.sourceControl.loadRepositoryInformation();
+  async loadRepositoryInformation(): Promise<void> {
+    await this.sourceControl.loadRepositoryInformation();
+    // TODO: Find PR info to load PR info
+    // TODO: Load PR info
   }
 
   getCommitByHash(hash: CommitHash): Promise<Commit | null> {
@@ -139,50 +141,122 @@ export class ConcreteStacker implements Stacker {
   private async updatePRDescriptionsForCompleteTreeContainingCommit(
     commit: Commit,
   ): Promise<void> {
-    const stack = [];
-    const nextCommits = [commit];
+    // Perform *breadth*-first search to find root of the complete tree
+    // containing `commit`. Search starts from `commit` and goes down the commit
+    // graph. We stop when we reach the tree root, i.e. the first merge-base
+    // commit between `commit` and any long-lived branch.
+    const mergeBaseCommitHashes = await this.sourceControl.getMergeBasesWithLongLivedBranches(
+      commit,
+    );
+    let nextParentCommitHashes: CommitHash[] = [...commit.parentCommits];
+    let currentCommitHash = commit.hash;
+    let treeRootCommit: Commit | null | undefined; // What we're searching for
+    while (nextParentCommitHashes.length) {
+      const [parentCommitHash] = nextParentCommitHashes.splice(0, 1);
+
+      // Stop if we've found the tree root
+      if (mergeBaseCommitHashes.includes(parentCommitHash)) {
+        // The tree root is the child of this parent (because the parent is on
+        // the base branch, it's not part of the tree to be updated).
+        treeRootCommit = nullthrows(
+          await this.sourceControl.getCommitByHash(currentCommitHash),
+          `A tree root commit hash ${parentCommitHash} from sourceControl should have an actual backing commit`,
+        );
+        break;
+      }
+
+      const parentCommit = nullthrows(
+        await this.sourceControl.getCommitByHash(parentCommitHash),
+        `A parent commit hash ${parentCommitHash} from sourceControl should have an actual backing commit`,
+      );
+      nextParentCommitHashes = [
+        ...nextParentCommitHashes,
+        ...parentCommit.parentCommits,
+      ];
+
+      // FIXME: The following line of code causes this BFS to produce the wrong
+      // tree root if `parentCommit`'s parent has multiple children.
+      //
+      // Take the following commit graph:
+      // * A
+      // |\
+      // | * B
+      // *   C
+      //
+      // Before the loop starts, the variables are initialized as such:
+      // - nextParentCommitHashes = [B, C]
+      // - currentCommitHash = A
+      //
+      // During the first iteration, before the following line of code is
+      // executed:
+      // - currentCommitHash = A
+      // - parentCommit = B
+      // - nextParentCommitHashes = [C]
+      //
+      // The following line of code will then set:
+      // currentCommitHash = parentCommit = B
+      //
+      // The second iteration will thus have the following variables:
+      // - currentCommitHash = B
+      // - parentCommit = C (dequeued from nextParentCommitHashes)
+      //
+      // Because C is not a parent of B, we've violated our (implicitly assumed)
+      // loop invariants (that parentCommit is a parent of currentCommitHash).
+      // More practically, if C is on a long lived branch, this search will
+      // output B as the tree root, when it should be A.
+      currentCommitHash = parentCommit.hash;
+    }
+
+    // TODO: Figure out a way to handle the case when we reached the end of the
+    // commit history without finding a tree root. Update everything?
+    treeRootCommit = nullthrows(
+      treeRootCommit,
+      "A tree root could not be found!",
+    );
+
+    // Build the commit tree up from the tree root by *depth*-first search
+    const linearCommitTree = []; // We don't care about the tree structure so we just store it as a list
+    const nextCommits = [treeRootCommit];
     while (nextCommits.length) {
-      // Push commit onto stack
+      // Push commit into tree
       const nextCommit = nextCommits.pop()!;
-      stack.push(nextCommit);
+      linearCommitTree.push(nextCommit);
 
       // Find next commits
-      const nullableChildCommits = await Promise.all(
-        nextCommit.childCommits.map((commitHash) =>
-          this.sourceControl.getCommitByHash(commitHash),
-        ),
-      );
-      const childCommits = nullableChildCommits.map((commit) =>
-        nullthrows(
-          commit,
-          "Commit must exist if we got the commit from the repository.",
+      const childCommits = await Promise.all(
+        nextCommit.childCommits.map(async (commitHash) =>
+          nullthrows(
+            await this.sourceControl.getCommitByHash(commitHash),
+            "Commit must exist as we got the commit from the repository.",
+          ),
         ),
       );
       nextCommits.push(...childCommits);
     }
 
-    //TODO: Implement a complete version of the stack that start from the merge-base commit and also takes into consideration landed PRs
+    // Get PRs to be updated
     const commitNullablePrInfoPairs = await Promise.all(
-      stack.map(async (commit) => {
-        const branchName = nullthrows(
-          this.sourceControl.getSttackBranchForCommit(commit),
-          "Violation of prerequisite: updatePRDescriptionsForCompleteTreeContainingCommit requires commits to have its Stack Attack branch already pushed to the remote.",
-        );
-        const prInfo = await this.collaborationPlatform.getPRForCommitByBranchName(
-          commit.hash,
-          branchName,
-        );
-        return { commit, prInfo };
+      linearCommitTree.map(async (commit) => {
+        const branchName = this.sourceControl.getSttackBranchForCommit(commit);
+        return {
+          commit,
+          prInfo: branchName
+            ? await this.collaborationPlatform.getPRForCommitByBranchName(
+                commit.hash,
+                branchName,
+              )
+            : null,
+        };
       }),
     );
     const commitPrInfoPairs = commitNullablePrInfoPairs
-      .filter(({ prInfo }) => !!prInfo) // Commits may not have PRs opened
+      .filter(({ prInfo }) => !!prInfo) // Commits may not have associated PRs
       .map(({ commit, prInfo }) => ({
         commit,
         prInfo: nullthrows(prInfo, "null prInfo should have been filtered out"),
       }));
 
-    return this.collaborationPlatform.updatePRDescriptionsForCommitGraph(
+    await this.collaborationPlatform.updatePRDescriptionsForCommitGraph(
       commitPrInfoPairs,
     );
   }
