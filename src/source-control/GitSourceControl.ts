@@ -296,7 +296,17 @@ export class GitSourceControl implements SourceControl {
         // Bug in type defs: `commit` returns an Index, not a number.
         // See: https://www.nodegit.org/api/cherrypick/#cherrypick
       )) as unknown) as nodegit.Index;
-      const tree = await index.writeTreeTo(repo);
+      let tree: nodegit.Oid;
+      try {
+        tree = await index.writeTreeTo(repo);
+      } catch (err) {
+        // Remove temp branch
+        nodegit.Branch.delete(await repo.getBranch(tempBranchName));
+        await this.populateGitSourceControl();
+        throw new Error(
+          `${hashOfCommitToBeRebased} could not be rebased on ${targetCommitHash} due to merge conflict`,
+        );
+      }
       const cherryPickTargetRef = await repo.createBranch(
         tempBranchName,
         targetCommitOid,
@@ -310,7 +320,6 @@ export class GitSourceControl implements SourceControl {
         tree,
         [targetNodegitCommit],
       );
-
       // Use `git branch -f` to change all the original commit's local branches
       // to point to the new one.
       commitToBeRebased.refNames.map(async (refName: RefName) => {
@@ -337,7 +346,6 @@ export class GitSourceControl implements SourceControl {
           repo.setHead(newBranchRef.toString());
         }
       });
-
       // Update refs in our hashMap
       this.repo = produce(this.repo, (draftRepo) => {
         const draftTargetCommit = nullthrows(
@@ -372,7 +380,6 @@ export class GitSourceControl implements SourceControl {
         rebaseTargetHashMap.set(childCommitHash, newCommitOid.tostrS());
       });
     }
-
     // Remove temp branch
     nodegit.Branch.delete(await repo.getBranch(tempBranchName));
 
