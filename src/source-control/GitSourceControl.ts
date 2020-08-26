@@ -257,7 +257,7 @@ export class GitSourceControl implements SourceControl {
       throw new Error(`Target commit ${targetCommitHash} does not exist`);
     }
     rebaseTargetHashMap.set(rebaseRootCommitHash, targetCommitHash);
-    const tempBranchName = "stack-attack-temporary-cherry-pick-target-branch";
+    const tempBranchName = "stack-attack/rebase-target";
     const queue: string[] = [rebaseRootCommitHash];
     while (queue.length) {
       // Loop overview:
@@ -287,6 +287,11 @@ export class GitSourceControl implements SourceControl {
         nodegit.Oid.fromString(commitToBeRebased.hash),
       );
       const targetNodegitCommit = await repo.getCommit(targetCommitOid);
+      const cherryPickTargetRef = await repo.createBranch(
+        tempBranchName,
+        targetCommitOid,
+        true,
+      );
       const index = ((await nodegit.Cherrypick.commit(
         repo,
         originalNodegitCommit,
@@ -307,11 +312,6 @@ export class GitSourceControl implements SourceControl {
           `${hashOfCommitToBeRebased} could not be rebased on ${targetCommitHash} due to merge conflict`,
         );
       }
-      const cherryPickTargetRef = await repo.createBranch(
-        tempBranchName,
-        targetCommitOid,
-        true,
-      );
       const newCommitOid = await repo.createCommit(
         cherryPickTargetRef.toString(),
         originalNodegitCommit.author(),
