@@ -1,5 +1,8 @@
 # Stack Attack
 
+[![CircleCI](https://circleci.com/gh/taneliang/stack-attack.svg?style=svg)](https://circleci.com/gh/taneliang/stack-attack)
+[![codecov](https://codecov.io/gh/taneliang/stack-attack/branch/main/graph/badge.svg)](https://codecov.io/gh/taneliang/stack-attack)
+
 Stack Attack is a CLI tool that helps you work with stacked pull requests.
 Stacking PRs is now ~~a piece~~ many small pieces of cake.
 
