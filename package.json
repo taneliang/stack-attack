@@ -14,7 +14,7 @@
     "build": "tsc --project tsconfig.dist.json && chmod +x dist/cli/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint 'src/**/*.{ts,tsx}'",
-    "test": "xo && jest --passWithNoTests",
+    "test": "jest --passWithNoTests",
     "prepare": "yarn clean && yarn build"
   },
   "dependencies": {

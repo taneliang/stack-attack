@@ -26,7 +26,7 @@ const App: React.FC<Props> = ({ repoPath }) => {
       newStacker.loadRepositoryInformation();
       setStacker(newStacker);
     });
-  }, [setStacker]);
+  }, [repoPath, repositoryUpdateListener, setStacker]);
 
   const reload = useCallback(() => stacker?.loadRepositoryInformation(), [
     stacker,

@@ -471,7 +471,7 @@ export function useInteractionReducer(
 
   useEffect(() => {
     dispatch({ type: "initialize", payload: { stacker, repository } });
-  }, [repository]);
+  }, [stacker, repository]);
 
   return [state, dispatch];
 }
