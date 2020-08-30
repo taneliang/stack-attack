@@ -321,6 +321,7 @@ export class GitSourceControl implements SourceControl {
         tree,
         [targetNodegitCommit],
       );
+
       // Use `git branch -f` to change all the original commit's local branches
       // to point to the new one.
       commitToBeRebased.refNames.map(async (refName: RefName) => {
@@ -347,6 +348,7 @@ export class GitSourceControl implements SourceControl {
           repo.setHead(newBranchRef.toString());
         }
       });
+
       // Update refs in our hashMap
       const targetCommitHashCopy = targetCommitHash; // Ensure producer function below captures the correct target commit hash
       this.repo = produce(this.repo, (draftRepo) => {
@@ -382,6 +384,7 @@ export class GitSourceControl implements SourceControl {
         rebaseTargetHashMap.set(childCommitHash, newCommitOid.tostrS());
       });
     }
+
     // Remove temp branch
     nodegit.Branch.delete(await repo.getBranch(tempBranchName));
 
