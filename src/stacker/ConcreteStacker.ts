@@ -1,12 +1,13 @@
+import nullthrows from "nullthrows";
+
+import type { CollaborationPlatform } from "../collaboration-platform/CollaborationPlatform";
 import type { Commit, Repository, CommitHash } from "../shared/types";
 import type {
   SourceControl,
   SourceControlRepositoryUpdateListener,
 } from "../source-control/SourceControl";
-import type { CollaborationPlatform } from "../collaboration-platform/CollaborationPlatform";
-import type { Stacker, StackerRepositoryUpdateListener } from "./Stacker";
 
-import nullthrows from "nullthrows";
+import type { Stacker, StackerRepositoryUpdateListener } from "./Stacker";
 
 /**
  * A concrete implementation of the Stacker interface.

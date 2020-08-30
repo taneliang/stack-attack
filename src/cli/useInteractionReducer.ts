@@ -1,7 +1,7 @@
-import type { Stacker } from "../stacker";
-import type { Repository, Commit } from "../shared/types";
-
 import { useReducer, useEffect } from "react";
+
+import type { Repository, Commit } from "../shared/types";
+import type { Stacker } from "../stacker";
 
 export type DisplayCommit = {
   /** Backing commit */

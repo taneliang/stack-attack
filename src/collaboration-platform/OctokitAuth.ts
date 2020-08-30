@@ -1,5 +1,6 @@
-import { Octokit } from "@octokit/rest";
 import fs from "fs";
+
+import { Octokit } from "@octokit/rest";
 
 let cachedOctokit: Octokit | undefined;
 let repoPathForCachedOctokit: string | undefined;
