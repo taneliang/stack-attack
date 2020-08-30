@@ -39,6 +39,6 @@ jobs:
           path: test-reports
       - run:
           name: Create zipped build
-          command: zip stack-attack.zip dist
+          command: zip -r stack-attack.zip dist
       - store_artifacts:
           path: stack-attack.zip
