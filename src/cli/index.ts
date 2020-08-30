@@ -1,11 +1,12 @@
 #!/usr/bin/env node
 
-import React from "react";
-import { render } from "ink";
 import { Command } from "commander";
+import { render } from "ink";
+import React from "react";
+
+import { constructStacker } from "../shared/constructStacker";
 
 import App from "./App";
-import { constructStacker } from "../shared/constructStacker";
 
 const defaultRepoPath = process.cwd();
 

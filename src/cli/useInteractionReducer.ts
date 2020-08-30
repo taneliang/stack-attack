@@ -1,7 +1,7 @@
-import type { Stacker } from "../stacker";
-import type { Repository, Commit } from "../shared/types";
-
 import { useReducer, useEffect } from "react";
+
+import type { Repository, Commit } from "../shared/types";
+import type { Stacker } from "../stacker";
 
 export type DisplayCommit = {
   /** Backing commit */
@@ -471,7 +471,7 @@ export function useInteractionReducer(
 
   useEffect(() => {
     dispatch({ type: "initialize", payload: { stacker, repository } });
-  }, [repository]);
+  }, [stacker, repository]);
 
   return [state, dispatch];
 }

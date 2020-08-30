@@ -1,10 +1,11 @@
-import type { Stacker, StackerRepositoryUpdateListener } from "../stacker";
-import type { Repository } from "../shared/types";
-
-import React, { useCallback, useState, useEffect } from "react";
 import { Text } from "ink";
-import { RepositoryComponent } from "./RepositoryComponent";
+import React, { useCallback, useState, useEffect } from "react";
+
 import { constructStacker } from "../shared/constructStacker";
+import type { Repository } from "../shared/types";
+import type { Stacker, StackerRepositoryUpdateListener } from "../stacker";
+
+import { RepositoryComponent } from "./RepositoryComponent";
 
 interface Props {
   repoPath: string;
@@ -26,7 +27,7 @@ const App: React.FC<Props> = ({ repoPath }) => {
       newStacker.loadRepositoryInformation();
       setStacker(newStacker);
     });
-  }, [setStacker]);
+  }, [repoPath, repositoryUpdateListener, setStacker]);
 
   const reload = useCallback(() => stacker?.loadRepositoryInformation(), [
     stacker,

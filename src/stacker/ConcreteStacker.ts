@@ -1,12 +1,13 @@
+import nullthrows from "nullthrows";
+
+import type { CollaborationPlatform } from "../collaboration-platform/CollaborationPlatform";
 import type { Commit, Repository, CommitHash } from "../shared/types";
 import type {
   SourceControl,
   SourceControlRepositoryUpdateListener,
 } from "../source-control/SourceControl";
-import type { CollaborationPlatform } from "../collaboration-platform/CollaborationPlatform";
-import type { Stacker, StackerRepositoryUpdateListener } from "./Stacker";
 
-import nullthrows from "nullthrows";
+import type { Stacker, StackerRepositoryUpdateListener } from "./Stacker";
 
 /**
  * A concrete implementation of the Stacker interface.
@@ -109,10 +110,10 @@ export class ConcreteStacker implements Stacker {
       headBranch: commitBranchPair.sttackBranch,
       baseBranch: "master", // TODO: Implement retrieval of base branch for a given commit
     }));
-    const updatedCommits = await this.collaborationPlatform.createOrUpdatePRForCommits(
+    /*const updatedCommits =*/ await this.collaborationPlatform.createOrUpdatePRForCommits(
       commitsWithMetaData,
     );
-    // TODO: Pass updated commits back to GSC/our listener. Possible deeper
+    // TODO: Pass updatedCommits back to GSC/our listener. Possible deeper
     // issue: GSC caches its own `repo` but we want to augment it with PR info.
   }
 

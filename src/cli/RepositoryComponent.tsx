@@ -1,8 +1,9 @@
-import type { Stacker } from "../stacker";
-import type { Repository } from "../shared/types";
-
-import React from "react";
 import { Text, Box, useInput, useApp } from "ink";
+import React from "react";
+
+import type { Repository } from "../shared/types";
+import type { Stacker } from "../stacker";
+
 import {
   useInteractionReducer,
   DisplayCommit,

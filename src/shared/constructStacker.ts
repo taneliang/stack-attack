@@ -1,9 +1,9 @@
-import type { Stacker, StackerRepositoryUpdateListener } from "../stacker";
-
-import { GitSourceControl } from "../source-control";
-import { GitHubCollaborationPlatform } from "../collaboration-platform";
-import { ConcreteStacker } from "../stacker";
 import nodegit from "nodegit";
+
+import { GitHubCollaborationPlatform } from "../collaboration-platform";
+import { GitSourceControl } from "../source-control";
+import type { Stacker, StackerRepositoryUpdateListener } from "../stacker";
+import { ConcreteStacker } from "../stacker";
 
 export async function constructStacker(
   repoPath: string,
