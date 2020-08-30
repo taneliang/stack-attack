@@ -1,4 +1,5 @@
 import type { Octokit } from "@octokit/rest";
+
 import type {
   BranchName,
   Commit,
@@ -6,6 +7,7 @@ import type {
   PullRequestInfo,
   CommitHash,
 } from "../shared/types";
+
 import type { CollaborationPlatform } from "./CollaborationPlatform";
 import { getOctokit } from "./OctokitAuth";
 

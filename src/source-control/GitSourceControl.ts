@@ -1,9 +1,9 @@
-import nodegit from "nodegit";
-import produce, { enableMapSet } from "immer";
 import fs from "fs";
-import randomWords from "random-words";
+
+import produce, { enableMapSet } from "immer";
+import nodegit from "nodegit";
 import nullthrows from "nullthrows";
-enableMapSet();
+import randomWords from "random-words";
 
 import type {
   BranchName,
@@ -12,12 +12,14 @@ import type {
   CommitSignature,
   Repository,
   RefName,
-  RemoteName,
 } from "../shared/types";
+
 import type {
   SourceControl,
   SourceControlRepositoryUpdateListener,
 } from "./SourceControl";
+
+enableMapSet();
 
 const localRefPrefix: string = "refs/heads/";
 const stackAttackBranchNamePrefix = "stack-attack/";
@@ -67,8 +69,7 @@ export class GitSourceControl implements SourceControl {
 
   private async loadIfChangesPresent() {
     // Only populate repo if we haven't loaded it yet
-    // TODO: Also repopulate if the repo has changed after we've first loaded
-    // it (somehow)
+    // TODO: Also repopulate if the repo has changed after we've first loaded it (somehow)
     if (!this.repo) {
       await this.populateGitSourceControl();
     }
@@ -347,10 +348,11 @@ export class GitSourceControl implements SourceControl {
         }
       });
       // Update refs in our hashMap
+      const targetCommitHashCopy = targetCommitHash; // Ensure producer function below captures the correct target commit hash
       this.repo = produce(this.repo, (draftRepo) => {
         const draftTargetCommit = nullthrows(
-          draftRepo.commits.get(targetCommitHash),
-          `Could not find commit with hash ${targetCommitHash}`,
+          draftRepo.commits.get(targetCommitHashCopy),
+          `Could not find commit with hash ${targetCommitHashCopy}`,
         );
 
         // Add the newly-created commit to our repo
