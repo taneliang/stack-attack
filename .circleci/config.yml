@@ -13,7 +13,7 @@ jobs:
             - v2-node-{{ arch }}-{{ .Branch }}-
             - v2-node-{{ arch }}-
       - run:
-          name: Install Dependencies and Build
+          name: Install dependencies and build
           command:
             yarn --frozen-lockfile --cache-folder ~/.cache/yarn
             --non-interactive
@@ -37,3 +37,8 @@ jobs:
             yarn codecov --disable=gcov -f ./coverage/coverage-final.json
       - store_test_results:
           path: test-reports
+      - run:
+          name: Create zipped build
+          command: zip stack-attack.zip dist
+      - store_artifacts:
+          path: stack-attack.zip
