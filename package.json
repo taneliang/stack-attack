@@ -13,7 +13,7 @@
     "clean": "rm -rf dist",
     "build": "tsc --project tsconfig.dist.json && chmod +x dist/cli/index.js",
     "typecheck": "tsc --noEmit",
-    "test": "xo && jest",
+    "test": "xo && jest --passWithNoTests",
     "prepare": "yarn clean && yarn build"
   },
   "dependencies": {
