@@ -13,6 +13,7 @@
     "clean": "rm -rf dist",
     "build": "tsc --project tsconfig.dist.json && chmod +x dist/cli/index.js",
     "typecheck": "tsc --noEmit",
+    "lint": "eslint 'src/**/*.{ts,tsx}'",
     "test": "xo && jest --passWithNoTests",
     "prepare": "yarn clean && yarn build"
   },
@@ -29,24 +30,34 @@
     "react": "^16.13.1"
   },
   "devDependencies": {
+    "@babel/core": "^7.11.4",
     "@babel/preset-react": "^7.10.4",
     "@babel/register": "^7.10.5",
     "@types/jest": "^26.0.10",
     "@types/nodegit": "^0.26.7",
     "@types/uuid": "^8.3.0",
+    "@typescript-eslint/eslint-plugin": "^3.10.1",
+    "@typescript-eslint/parser": "^3.10.1",
+    "babel-eslint": "^10.1.0",
     "chalk": "^4.1.0",
-    "eslint-config-xo-react": "^0.23.0",
+    "eslint": "^7.7.0",
+    "eslint-config-prettier": "^6.11.0",
+    "eslint-config-react-app": "^5.2.1",
+    "eslint-plugin-flowtype": "^5.2.0",
+    "eslint-plugin-import": "^2.22.0",
     "eslint-plugin-jest": "^23.20.0",
+    "eslint-plugin-jsx-a11y": "^6.3.1",
+    "eslint-plugin-prettier": "^3.1.4",
     "eslint-plugin-react": "^7.20.6",
     "eslint-plugin-react-hooks": "^4.1.0",
     "ink-testing-library": "^2.0.1",
     "jest": "^26.4.2",
     "jest-junit": "^11.1.0",
     "nodemon": "^2.0.4",
+    "prettier": "^2.1.1",
     "ts-jest": "^26.3.0",
     "ts-node": "^9.0.0",
-    "typescript": "^4.0.2",
-    "xo": "^0.33.0"
+    "typescript": "^4.0.2"
   },
   "babel": {
     "presets": [
