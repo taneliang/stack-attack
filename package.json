@@ -21,7 +21,7 @@
     "@octokit/rest": "^18.0.4",
     "@types/faker": "^4.1.12",
     "commander": "^6.1.0",
-    "immer": "^7.0.8",
+    "immer": "^8.0.1",
     "ink": "3.0.4",
     "nodegit": "^0.27.0",
     "nullthrows": "^1.1.1",
